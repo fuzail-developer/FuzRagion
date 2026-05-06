@@ -48,11 +48,12 @@ button,input,select,textarea{-webkit-tap-highlight-color:transparent;}
 nav{display:flex;align-items:center;justify-content:space-between;padding:0 32px;height:60px;border-bottom:1px solid var(--border);background:rgba(3,3,8,0.92);backdrop-filter:blur(24px);position:sticky;top:0;z-index:100;}
 .logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;background:linear-gradient(135deg,var(--purple-light),var(--white));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 .logo em{-webkit-text-fill-color:var(--purple-mid);font-style:normal;}
-.nav-tabs{display:flex;gap:2px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;padding:3px;}
-.nav-tab{padding:6px 16px;border-radius:8px;border:none;background:transparent;color:var(--muted2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap;}
+.nav-tabs{display:flex;gap:2px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;padding:3px;overflow-x:auto;scrollbar-width:none;max-width:min(70vw,640px);}
+.nav-tabs::-webkit-scrollbar{display:none;}
+.nav-tab{padding:6px 16px;border-radius:8px;border:none;background:transparent;color:var(--muted2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap;flex:0 0 auto;}
 .nav-tab:hover{color:var(--white);}
 .nav-tab.active{background:var(--purple);color:white;box-shadow:0 0 16px #6c3dd650;}
-.nav-right{display:flex;align-items:center;gap:8px;}
+.nav-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .nav-badge{font-size:12px;color:var(--muted2);padding:4px 10px;background:var(--surface);border:1px solid var(--border);border-radius:7px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .btn-sm{padding:6px 14px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--muted2);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all 0.2s;}
 .btn-sm:hover{border-color:var(--danger);color:var(--danger);}
@@ -329,7 +330,8 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 32px
   html,body{height:100dvh;overflow-x:hidden;}
   nav{padding:0 12px;height:56px;}
   .logo{font-size:18px;}
-  .nav-tabs{display:none;}
+  .nav-tabs{display:flex;gap:4px;padding:2px;max-width:calc(100vw - 118px);}
+  .nav-tab{padding:6px 10px;font-size:12px;}
   .nav-right{gap:6px;min-width:0;}
   .nav-badge{display:none;}
   .btn-sm{padding:6px 10px;font-size:11px;min-height:40px;}
@@ -480,7 +482,6 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 32px
         </select>
         <div class="filter-lbl" id="filter-lbl">All Documents</div>
         <button class="btn-expand" id="expand-btn" onclick="toggleScreen()">Expand</button>
-        <div class="api-st"><div class="api-dot" id="api-dot"></div><span id="api-lbl">Checking...</span></div>
       </div>
       <div class="chat-msgs" id="chat-msgs">
         <div class="chat-welcome" id="chat-welcome">
@@ -713,17 +714,23 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 32px
 </div>
 
 <script>
-const SAME_ORIGIN_API = `${window.location.protocol}//${window.location.host}`;
-const LOCAL_API = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "::1"];
+const IS_LOOPBACK = LOOPBACK_HOSTS.includes(window.location.hostname) || window.location.protocol === "file:";
+const SAME_ORIGIN_API = window.location.protocol === "file:"
   ? "http://127.0.0.1:8001"
-  : `${window.location.protocol}//${window.location.hostname}:8001`;
-const API = window.location.hostname.includes("onrender.com") ? SAME_ORIGIN_API : LOCAL_API;
+  : `${window.location.protocol}//${window.location.host}`;
+const LOCAL_API_8001 = "http://127.0.0.1:8001";
+const LOCAL_API_8002 = "http://127.0.0.1:8002";
+const LOCAL_API_FALLBACKS = IS_LOOPBACK ? [LOCAL_API_8002, LOCAL_API_8001] : [];
+const API = SAME_ORIGIN_API;
 let ACTIVE_API = API;
-const ORIGIN_API = API;
+const ORIGIN_API = SAME_ORIGIN_API;
 function getApiCandidates(){
   return [
+    SAME_ORIGIN_API,
     ACTIVE_API,
     ORIGIN_API,
+    ...LOCAL_API_FALLBACKS,
   ].map(v => (v||'').trim().replace(/\/+$/, '')).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
 }
 
@@ -736,7 +743,7 @@ function setAPIBase(next){
 
 function connectionHelp(){
   const web = window.location.protocol === "file:"
-    ? `${LOCAL_API}/app`
+    ? `${LOCAL_API_8002}/app`
     : `${window.location.origin}/app`;
   const api = (ACTIVE_API || API || '').replace(/\/+$/, '');
   return `Cannot connect to server. Make sure backend is running, then open the same base URL on laptop/mobile.\nWeb: ${web}\nAPI: ${api}`;
@@ -869,8 +876,8 @@ composer.setSize(innerWidth,innerHeight);
 ;document.onreadystatechange=null;
 
 // -- State --
-let token=localStorage.getItem('cv_tok');
-let user=JSON.parse(localStorage.getItem('cv_usr')||'null');
+let token=sessionStorage.getItem('cv_tok');
+let user=JSON.parse(sessionStorage.getItem('cv_usr')||'null');
 let chatCount=0;
 let pdfCount=0;
 let activeDoc=null;
@@ -898,7 +905,8 @@ async function loadUserScopedState(){
   currentChatId=localStorage.getItem(scopedKey('cv_current_chat'));
   savedAnswers=JSON.parse(localStorage.getItem(scopedKey('cv_saved'))||'[]');
   queryHistory=JSON.parse(localStorage.getItem(scopedKey('cv_queries'))||'[]');
-  pdfCount=parseInt(localStorage.getItem(scopedKey('cv_pdf_count'))||'0');
+  pdfCount=Number.parseInt(localStorage.getItem(scopedKey('cv_pdf_count'))||'0',10);
+  if(!Number.isFinite(pdfCount)) pdfCount=0;
   
   // Load from backend
   try{
@@ -931,11 +939,16 @@ window.onload=async()=>{
   initTheme();
   initSpeechRecognition();
   restoreChatState();
+  showSc('auth');
   if(token&&user){
-    await refreshUser();
-    enterApp();
+    const ok = await refreshUser();
+    if(ok){
+      enterApp();
+    } else {
+      logout();
+    }
   }
-  checkAPI();
+  await checkAPI();
 };
 
 function setThemeVars(p,m,l,g){
@@ -1069,8 +1082,8 @@ async function doSignup(){
 function saveUser(d){
   token=d.access_token;
   user=d.user;
-  localStorage.setItem('cv_tok',token);
-  localStorage.setItem('cv_usr',JSON.stringify(user));
+  sessionStorage.setItem('cv_tok',token);
+  sessionStorage.setItem('cv_usr',JSON.stringify(user));
   loadUserScopedState();
   updateSubscriptionState();
 }
@@ -1083,22 +1096,29 @@ async function refreshUser(){
     const d=await r.json();
     if(r.ok){
       user=d;
-      localStorage.setItem('cv_usr',JSON.stringify(user));
+      sessionStorage.setItem('cv_usr',JSON.stringify(user));
       await loadUserScopedState();
       updateSubscriptionState();
+      return true;
     } else {
-      logout();
+      if(r.status===401){
+        ACTIVE_API = SAME_ORIGIN_API;
+      }
+      return false;
     }
   }catch{
-    logout();
+    ACTIVE_API = SAME_ORIGIN_API;
+    return false;
   }
 }
 
 function updateSubscriptionState(){
-  chatCount=Number(user?.chat_count||0);
+  const rawChatCount = Number(user?.chat_count);
+  chatCount=Number.isFinite(rawChatCount) ? rawChatCount : 0;
   if(user?.subscription_plan==='pro' && user?.subscription_expiry){
-    subscriptionExpiry=new Date(user.subscription_expiry);
-    premiumActive=subscriptionExpiry>new Date();
+    const parsed = new Date(user.subscription_expiry);
+    subscriptionExpiry = Number.isNaN(parsed.getTime()) ? null : parsed;
+    premiumActive = !!subscriptionExpiry && subscriptionExpiry > new Date();
   } else {
     subscriptionExpiry=null;
     premiumActive=false;
@@ -1117,7 +1137,7 @@ function enterApp(){
 }
 
 function logout(){
-  localStorage.removeItem('cv_tok');localStorage.removeItem('cv_usr');
+  sessionStorage.removeItem('cv_tok');sessionStorage.removeItem('cv_usr');
   token=null;user=null;
   chatCount=0;
   premiumActive=false;
@@ -1180,16 +1200,18 @@ function updatePlan(){
       limitBar.innerHTML='✅ Pro plan active • enjoy unlimited AI access';
     }
   } else {
-    const left=MAX_FREE-chatCount;
-    const pdfLeft=MAX_FREE_PDF-pdfCount;
-    if(curPlan)curPlan.textContent=(chatCount>=MAX_FREE || pdfCount>=MAX_FREE_PDF)?'⚠️ Free • Limit Reached':'🆓 Free • 5 chats, 1 PDF';
+    const safeChatCount = Number.isFinite(chatCount) ? chatCount : 0;
+    const safePdfCount = Number.isFinite(pdfCount) ? pdfCount : 0;
+    const left=Math.max(0, MAX_FREE-safeChatCount);
+    const pdfLeft=Math.max(0, MAX_FREE_PDF-safePdfCount);
+    if(curPlan)curPlan.textContent=(safeChatCount>=MAX_FREE || safePdfCount>=MAX_FREE_PDF)?'⚠️ Free • Limit Reached':'🆓 Free • 5 chats, 1 PDF';
     if(curStatus)curStatus.textContent=`💬 ${left} chats, 📄 ${pdfLeft} PDF remaining`;
-    if(planLbl)planLbl.textContent=(chatCount>=MAX_FREE || pdfCount>=MAX_FREE_PDF)?'⚠️ Limit Reached':'🆓 Free Plan';
-    if(planCnt)planCnt.textContent=`💬 ${chatCount} / ${MAX_FREE} chats used • 📄 ${pdfCount} / ${MAX_FREE_PDF} PDF uploaded`;
-    if(planFill)planFill.style.width=`${Math.min(((chatCount/MAX_FREE + pdfCount/MAX_FREE_PDF)/2)*100,100)}%`;
+    if(planLbl)planLbl.textContent=(safeChatCount>=MAX_FREE || safePdfCount>=MAX_FREE_PDF)?'⚠️ Limit Reached':'🆓 Free Plan';
+    if(planCnt)planCnt.textContent=`💬 ${safeChatCount} / ${MAX_FREE} chats used • 📄 ${safePdfCount} / ${MAX_FREE_PDF} PDF uploaded`;
+    if(planFill)planFill.style.width=`${Math.min(((safeChatCount/MAX_FREE + safePdfCount/MAX_FREE_PDF)/2)*100,100)}%`;
     if(chatsLeft)chatsLeft.textContent=`${left} chat${left!==1?'s':''} remaining`;
     if(limitBar){
-      limitBar.style.borderColor=(chatCount>=MAX_FREE || pdfCount>=MAX_FREE_PDF)?'var(--danger)':'';
+      limitBar.style.borderColor=(safeChatCount>=MAX_FREE || safePdfCount>=MAX_FREE_PDF)?'var(--danger)':'';
       limitBar.innerHTML=`Free Plan - <strong id="chats-left">${left} chat${left!==1?'s':''} remaining</strong>`;
     }
   }
@@ -1316,15 +1338,28 @@ function loadChat(id){
   renderHistory();
 }
 
+function normalizeFileName(file){
+  if(!file) return '';
+  if(typeof file === 'string') return file;
+  if(typeof file === 'object'){
+    return file.filename || file.file_name || file.name || file.title || String(file);
+  }
+  return String(file);
+}
+
+function jsArg(value){
+  return JSON.stringify(String(value));
+}
+
 // Doc chips
 async function loadDocChips(){
   try{
     const r=await fetch(`${ACTIVE_API}/files`,{headers:ah()});
     const d=await r.json();
-    const files=d.files||[];
+    const files=(d.files||[]).map(normalizeFileName).filter(Boolean);
     const el=document.getElementById('doc-chips');
     el.innerHTML=`<div class="doc-chip ${activeDoc===null?'active':''}" onclick="setDoc(null,this)"><div class="dc-dot all"></div><span class="dc-name">All Documents</span></div>`
-      +files.map(f=>`<div class="doc-chip ${activeDoc===f?'active':''}" onclick="setDoc('${f}',this)"><div class="dc-dot"></div><span class="dc-name">${f}</span></div>`).join('');
+      +files.map(f=>`<div class="doc-chip ${activeDoc===f?'active':''}" onclick="setDoc(${jsArg(f)},this)"><div class="dc-dot"></div><span class="dc-name">${f}</span></div>`).join('');
     updatePlan();checkAPI();
   }catch{}
 }
@@ -1459,14 +1494,15 @@ if(!premiumActive && chatCount>=MAX_FREE){showPaywall();return;}
       renderMsg(d.answer,'ai',d.sources,d.language||'');
       currentMsgs.push({text:d.answer,type:'ai',sources:d.sources||[]});
       if(!premiumActive){
-        chatCount = d.chats_remaining !== null ? MAX_FREE - d.chats_remaining : chatCount + 1;
+        const remaining = Number(d.chats_remaining);
+        chatCount = Number.isFinite(remaining) ? Math.max(0, MAX_FREE - remaining) : chatCount + 1;
         updatePlan();
       }
       const title=txt.length>40?txt.substring(0,40)+'...':txt;
       document.getElementById('chat-title').textContent=title;
       saveCurrentChat(title);
       renderHistory();
-      if(!premiumActive && d.chats_remaining === 0)setTimeout(showPaywall,800);
+      if(!premiumActive && Number(d.chats_remaining) === 0)setTimeout(showPaywall,800);
       speak(d.answer,d.language||'');
     }else if(r.status===403){
       renderMsg(d.detail||'Free limit reached!','ai');
@@ -1487,7 +1523,8 @@ function renderMsg(txt,type,srcs=[],lang=''){
   d.className=`msg ${type}`;
   const sh=srcs?.length?`<div class="msrc">Sources: ${srcs.slice(0,2).join(' • ')}</div>`:'';
   const spk=(type==='ai')?`<button class="speak-btn" onclick="speak(decodeURIComponent('${encodeURIComponent(txt)}'),'${(lang||'').replace(/'/g,"\\'")}');" style="margin-left:8px;padding:3px 6px;font-size:11px;border:none;background:var(--purple);color:white;border-radius:4px;cursor:pointer;" title="Read aloud">Read</button>`:'';
-  d.innerHTML=`<div class="mav">${type==='ai'?'AI':'You'}</div><div class="mbody">${txt.replace(/\n/g,'<br>')}${sh}${spk}</div>`;
+  const avatar = type==='ai' ? '🤖' : '👤';
+  d.innerHTML=`<div class="mav" aria-hidden="true">${avatar}</div><div class="mbody">${txt.replace(/\n/g,'<br>')}${sh}${spk}</div>`;
   c.appendChild(d);c.scrollTop=c.scrollHeight;return d;
 }
 
@@ -1511,30 +1548,45 @@ function addTyping(){
   const c=document.getElementById('chat-msgs');
   const d=document.createElement('div');
   d.className='msg ai';
-  d.innerHTML=`<div class="mav">AI</div><div class="mbody"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  d.innerHTML=`<div class="mav" aria-hidden="true">🤖</div><div class="mbody"><div class="typing"><span></span><span></span><span></span></div></div>`;
   c.appendChild(d);c.scrollTop=c.scrollHeight;return d;
 }
 
 // Documents
 async function loadDocs(){
   try{
-    const r=await fetch(`${ACTIVE_API}/files`,{headers:ah()});
+    const r=await withAPIFallback('/documents',{headers:ah()});
+  if(r.status===401 || r.status===403){
+      logout();
+      return;
+    }
     const d=await r.json();
-    const files=d.files||[];
+    const docs=Array.isArray(d.documents) ? d.documents : [];
     const el=document.getElementById('doc-list');
-  if(!files.length){el.innerHTML='<div class="doc-empty">📭 No documents yet - upload your first file above</div>';return;}
-    el.innerHTML=files.map(f=>`
+  if(!docs.length){el.innerHTML='<div class="doc-empty">📭 No documents yet - upload your first file above</div>';return;}
+    el.innerHTML=docs.map(doc=>{
+      const name=normalizeFileName(doc.file_name);
+      const chunks=Number(doc.chunks_count||0);
+      const created=doc.created_at ? new Date(doc.created_at).toLocaleDateString() : '';
+      const meta=`${chunks} chunk${chunks===1?'':'s'}${created ? ` • ${created}` : ''}`;
+      return `
       <div class="doc-row">
         <div class="dr-icon">📄</div>
-        <div class="dr-info"><div class="dr-name">${f}</div><div class="dr-meta">? Indexed and ready</div></div>
+        <div class="dr-info"><div class="dr-name">${name}</div><div class="dr-meta">${meta}</div></div>
         <div class="dr-badge">? Ready</div>
         <div class="dr-btns">
-          <button class="btn-cd" onclick="chatDoc('${f}')">Chat</button>
-          <button class="btn-dd" onclick="delDoc('${f}')">Delete</button>
+          <button class="btn-cd" onclick="chatDoc(${jsArg(name)})">Chat</button>
+          <button class="btn-dd" onclick="delDoc(${jsArg(name)})">Delete</button>
         </div>
       </div>
-    `).join('');
-  }catch{toast('? Cannot load files','error');}
+      `;
+    }).join('');
+  }catch{
+    const el=document.getElementById('doc-list');
+    if(el){
+      el.innerHTML='<div class="doc-empty">📭 No documents yet - upload your first file above</div>';
+    }
+  }
 }
 
 async function uploadFiles(e){
@@ -1553,11 +1605,12 @@ async function uploadFiles(e){
     const f=files[i];st.textContent=`Uploading ${f.name}...`;fill.style.width='20%';
     const fd=new FormData();fd.append('file',f);
     try{
-      const r=await fetch(`${ACTIVE_API}/upload`,{method:'POST',headers:ah(),body:fd});
+      const r=await withAPIFallback('/upload',{method:'POST',headers:ah(),body:fd});
       const d=await r.json();
       fill.style.width=`${((i+1)/files.length)*100}%`;
       if(r.ok){
-        toast(`? ${f.name} uploaded!`,'success');
+        const chunkInfo = typeof d.chunks === 'number' ? ` • ${d.chunks} chunks` : '';
+        toast(`${f.name} uploaded${chunkInfo}`,'success');
         if(!premiumActive){
           pdfCount++;
           persistUserScopedState();
@@ -1573,7 +1626,7 @@ async function uploadFiles(e){
 
 async function delDoc(name){
   try{
-    const r=await fetch(`${ACTIVE_API}/delete/${encodeURIComponent(name)}`,{method:'DELETE',headers:ah()});
+    const r=await withAPIFallback(`/delete/${encodeURIComponent(name)}`,{method:'DELETE',headers:ah()});
     if(r.ok){toast(`${name} deleted`,'warning');loadDocs();}
     else{const d=await r.json();toast(`? ${d.detail}`,'error');}
   }catch{toast('? Delete failed','error');}

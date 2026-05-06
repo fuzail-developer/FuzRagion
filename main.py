@@ -17,10 +17,12 @@ from sqlalchemy.orm import Session
 from auth.utils import send_email
 from auth.dependencies import get_current_user
 from auth.router import router as auth_router
-from dependencies.database import DATABASE_URL, engine, get_db
-from models import Base, Document, User
+from dependencies.database import DATABASE_URL, SessionLocal, engine, get_db
+from models import Base, ChatHistory, Document, User
 
 load_dotenv()
+
+os.environ.setdefault("PDF_LOADER_LIGHTWEIGHT", "1")
 
 BASE_DIR = Path(__file__).resolve().parent
 PDFS_DIR = BASE_DIR / "pdfs"
@@ -172,17 +174,27 @@ def init_ai_components():
     )
 
     embedding_model = OpenAIEmbeddings(model="text-embedding-3-large")
-    qdrant_url = os.getenv("QDRANT_URL", "").strip()
-    qdrant_api_key = os.getenv("QDRANT_API_KEY", "").strip() or None
-    if is_hosted and not qdrant_url:
-        print(
-            "Warning: QDRANT_URL is not set on hosted deployment. Falling back to local qdrant path (non-persistent)."
-        )
+    use_remote_qdrant = os.getenv("USE_REMOTE_QDRANT", "0").strip() == "1"
+    qdrant_client = None
+    if use_remote_qdrant:
+        qdrant_url = os.getenv("QDRANT_URL", "").strip()
+        qdrant_api_key = os.getenv("QDRANT_API_KEY", "").strip() or None
+        if qdrant_url:
+            try:
+                qdrant_client = QdrantClient(
+                    url=qdrant_url,
+                    api_key=qdrant_api_key,
+                    timeout=30,
+                    check_compatibility=False,
+                )
+                qdrant_client.get_collections()
+                print(f"Using remote Qdrant: {qdrant_url}")
+            except Exception:
+                qdrant_client = None
 
-    if qdrant_url:
-        qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key, timeout=30)
-    else:
+    if qdrant_client is None:
         qdrant_client = QdrantClient(path=str(QDRANT_DIR))
+        print(f"Using local Qdrant: {QDRANT_DIR}")
 
     existing = [c.name for c in qdrant_client.get_collections().collections]
     if COLLECTION_NAME not in existing:
@@ -201,6 +213,59 @@ def init_ai_components():
     print("✓ AI components initialized")
 
 
+def sync_existing_documents_to_vectors():
+    """Rebuild vectors for PDFs already stored on disk."""
+    if vector_store is None or qdrant_client is None:
+        return
+
+    from pdf_loader import split_file_into_chunks
+    from qdrant_client.models import Filter, FieldCondition, MatchValue
+
+    db = SessionLocal()
+    try:
+        rows = db.query(Document).all()
+        if not rows:
+            return
+
+        for row in rows:
+            file_path = PDFS_DIR / row.user_id / row.file_name
+            if not file_path.exists():
+                file_path = PDFS_DIR / row.file_name
+            if not file_path.exists():
+                continue
+
+            try:
+                qdrant_client.delete(
+                    collection_name=COLLECTION_NAME,
+                    points_selector=Filter(
+                        must=[
+                            FieldCondition(
+                                key="metadata.file_id",
+                                match=MatchValue(value=row.vector_file_id),
+                            )
+                        ]
+                    ),
+                )
+            except Exception as exc:  # noqa: BLE001
+                print(f"Skipping old vector cleanup for {row.file_name}: {exc}")
+
+            chunks = split_file_into_chunks(str(file_path))
+            for chunk in chunks:
+                chunk.metadata["file_id"] = row.vector_file_id
+                chunk.metadata["source"] = row.file_name
+                chunk.metadata["user_id"] = row.user_id
+
+            if chunks:
+                vector_store.add_documents(chunks)
+                row.chunks_count = len(chunks)
+                row.file_hash = get_hash(file_path)
+                print(f"Reindexed: {row.file_name} ({len(chunks)} chunks)")
+
+        db.commit()
+    finally:
+        db.close()
+
+
 app = FastAPI(title="Fuzragion RAG API", version="2.0.0")
 app.include_router(auth_router)
 
@@ -211,6 +276,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def startup_reindex_documents():
+    try:
+        init_ai_components()
+        print("Startup reindex disabled. PDFs will only be chunked on upload.")
+    except Exception as exc:  # noqa: BLE001
+        print(f"Startup document sync skipped: {exc}")
 
 
 class AskRequest(BaseModel):
@@ -378,16 +452,11 @@ async def upload(
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     is_premium = is_user_premium(current_user, now)
-    if not is_premium:
-        raise HTTPException(
-            status_code=403,
-            detail="PDF upload is available on Pro plan. Please upgrade to unlock unlimited PDF uploads.",
-        )
 
     init_ai_components()  # Initialize AI components on first use
 
-    # Lazy imports for PDF processing
-    from langchain_community.document_loaders import PyPDFLoader
+    # Reuse the shared PDF chunking helper used by pdf_loader.py
+    from pdf_loader import split_file_into_chunks
     from qdrant_client.models import Filter, FieldCondition, MatchValue
 
     if not file.filename:
@@ -395,6 +464,22 @@ async def upload(
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(
             status_code=400, detail="Only PDF upload is currently supported"
+        )
+
+    existing_doc = (
+        db.query(Document)
+        .filter(
+            Document.user_id == current_user.id, Document.file_name == file.filename
+        )
+        .first()
+    )
+    pdf_count = (
+        db.query(Document.id).filter(Document.user_id == current_user.id).count()
+    )
+    if not is_premium and not existing_doc and pdf_count >= 1:
+        raise HTTPException(
+            status_code=403,
+            detail="Free plan includes 1 PDF upload. Delete your existing PDF or upgrade to Pro for unlimited uploads.",
         )
 
     file_bytes = await file.read()
@@ -407,14 +492,6 @@ async def upload(
 
     file_hash = get_hash(temp_path)
     vector_file_id = _vector_file_id(current_user.id, file.filename)
-
-    existing_doc = (
-        db.query(Document)
-        .filter(
-            Document.user_id == current_user.id, Document.file_name == file.filename
-        )
-        .first()
-    )
     if existing_doc:
         qdrant_client.delete(
             collection_name=COLLECTION_NAME,
@@ -429,8 +506,7 @@ async def upload(
         )
 
     try:
-        docs = PyPDFLoader(str(temp_path)).load()
-        chunks = text_splitter.split_documents(docs)
+        chunks = split_file_into_chunks(str(temp_path))
         for chunk in chunks:
             chunk.metadata["file_id"] = vector_file_id
             chunk.metadata["source"] = file.filename
