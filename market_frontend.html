@@ -427,16 +427,16 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 32px
         <button class="atab" onclick="atab(this,'signup')">Sign Up</button>
       </div>
       <div id="f-login">
-        <div class="fg"><label class="fl">Email</label><input class="fi" id="le" type="email" inputmode="email" autocomplete="email" placeholder="you@company.com"></div>
-        <div class="fg"><label class="fl">Password</label><input class="fi" id="lp" type="password" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+        <div class="fg"><label class="fl">Email</label><input class="fi" id="le" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@company.com"></div>
+        <div class="fg"><label class="fl">Password</label><input class="fi" id="lp" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
         <button class="btn-auth" onclick="doLogin()">Login to Fuzragion ?</button>
         <div class="auth-err" id="lerr"></div>
       </div>
       <div id="f-signup" style="display:none">
         <div class="fg"><label class="fl">Full Name</label><input class="fi" id="sn" type="text" autocomplete="name" placeholder="Your Name"></div>
-        <div class="fg"><label class="fl">Email</label><input class="fi" id="se" type="email" inputmode="email" autocomplete="email" placeholder="you@company.com"></div>
-        <div class="fg"><label class="fl">Phone Number</label><input class="fi" id="sph" type="tel" inputmode="tel" autocomplete="tel" placeholder="+919876543210"></div>
-        <div class="fg"><label class="fl">Password</label><input class="fi" id="sp" type="password" autocomplete="new-password" placeholder="Min 6 characters" onkeydown="if(event.key==='Enter')doSignup()"></div>
+        <div class="fg"><label class="fl">Email</label><input class="fi" id="se" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@company.com"></div>
+        <div class="fg"><label class="fl">Phone Number</label><input class="fi" id="sph" type="tel" inputmode="tel" autocomplete="tel" autocapitalize="off" spellcheck="false" placeholder="+919876543210"></div>
+        <div class="fg"><label class="fl">Password</label><input class="fi" id="sp" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" placeholder="Min 6 characters" onkeydown="if(event.key==='Enter')doSignup()"></div>
         <button class="btn-auth" onclick="doSignup()">Create Account - 5 Free Chats</button>
         <div class="auth-err" id="serr"></div>
       </div>
@@ -1041,12 +1041,32 @@ function atab(btn,tab){
   document.getElementById('f-signup').style.display=tab==='signup'?'block':'none';
 }
 
+function normalizeEmail(email){
+  const value=String(email||'').trim().toLowerCase();
+  const map={
+    'gamil.com':'gmail.com',
+    'gmial.com':'gmail.com',
+    'gmail.con':'gmail.com',
+    'hotmial.com':'hotmail.com',
+    'outlok.com':'outlook.com',
+  };
+  const at=value.lastIndexOf('@');
+  if(at<0)return value;
+  const local=value.slice(0,at);
+  const domain=value.slice(at+1);
+  return `${local}@${map[domain]||domain}`;
+}
+
 async function doLogin(){
-  const e=document.getElementById('le').value.trim();
+  const rawEmail=document.getElementById('le').value.trim();
   const p=document.getElementById('lp').value;
   const err=document.getElementById('lerr');
   err.style.display='none';
-  if(!e||!p){showErr(err,'Please fill all fields');return;}
+  if(!rawEmail||!p){showErr(err,'Please fill all fields');return;}
+  const e=normalizeEmail(rawEmail);
+  if(e!==rawEmail.toLowerCase()){
+    toast(`Corrected email to ${e}`,'info');
+  }
   const btn=document.querySelector('#f-login .btn-auth');
   if(btn)btn.disabled=true;
   try{
@@ -1060,14 +1080,18 @@ async function doLogin(){
 
 async function doSignup(){
   const n=document.getElementById('sn').value.trim();
-  const e=document.getElementById('se').value.trim();
+  const rawEmail=document.getElementById('se').value.trim();
   const ph=document.getElementById('sph').value.trim();
   const p=document.getElementById('sp').value;
   const err=document.getElementById('serr');
   err.style.display='none';
-  if(!n||!e||!ph||!p){showErr(err,'Please fill all fields');return;}
+  if(!n||!rawEmail||!ph||!p){showErr(err,'Please fill all fields');return;}
   if(!/^\+?[0-9]{10,15}$/.test(ph)){showErr(err,'Enter valid phone number (10-15 digits)');return;}
   if(p.length<6){showErr(err,'Password must be at least 6 characters');return;}
+  const e=normalizeEmail(rawEmail);
+  if(e!==rawEmail.toLowerCase()){
+    toast(`Corrected email to ${e}`,'info');
+  }
   const btn=document.querySelector('#f-signup .btn-auth');
   if(btn)btn.disabled=true;
   try{

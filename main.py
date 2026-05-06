@@ -250,6 +250,10 @@ def sync_existing_documents_to_vectors():
                 print(f"Skipping old vector cleanup for {row.file_name}: {exc}")
 
             chunks = split_file_into_chunks(str(file_path))
+            if not chunks:
+                print(f"Skipping reindex for {row.file_name}: no extractable text found")
+                continue
+
             for chunk in chunks:
                 chunk.metadata["file_id"] = row.vector_file_id
                 chunk.metadata["source"] = row.file_name
@@ -264,6 +268,25 @@ def sync_existing_documents_to_vectors():
         db.commit()
     finally:
         db.close()
+
+
+def prepare_document_chunks(file_path: str, *, file_id: str, source: str, user_id: str):
+    """Load a document, split it into chunks, and attach storage metadata."""
+    from pdf_loader import split_file_into_chunks
+
+    chunks = split_file_into_chunks(file_path)
+    if not chunks:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No extractable text found in {source}. The file may be image-only or corrupted.",
+        )
+
+    for chunk in chunks:
+        chunk.metadata["file_id"] = file_id
+        chunk.metadata["source"] = source
+        chunk.metadata["user_id"] = user_id
+
+    return chunks
 
 
 app = FastAPI(title="Fuzragion RAG API", version="2.0.0")
@@ -282,7 +305,8 @@ app.add_middleware(
 def startup_reindex_documents():
     try:
         init_ai_components()
-        print("Startup reindex disabled. PDFs will only be chunked on upload.")
+        sync_existing_documents_to_vectors()
+        print("Startup document sync complete. PDFs are indexed and ready.")
     except Exception as exc:  # noqa: BLE001
         print(f"Startup document sync skipped: {exc}")
 
@@ -387,17 +411,27 @@ async def shutdown_event():
         qdrant_client.close()
 
 
+def _frontend_file_response():
+    frontend_file = BASE_DIR / "market_frontend.html"
+    if frontend_file.exists():
+        return FileResponse(frontend_file)
+    return None
+
+
 @app.get("/")
 def root():
+    frontend = _frontend_file_response()
+    if frontend is not None:
+        return frontend
     return {"status": "running"}
 
 
 @app.get("/app", include_in_schema=False)
 def serve_frontend():
     """Serve the frontend application"""
-    frontend_file = BASE_DIR / "market_frontend.html"
-    if frontend_file.exists():
-        return FileResponse(frontend_file)
+    frontend = _frontend_file_response()
+    if frontend is not None:
+        return frontend
     raise HTTPException(status_code=404, detail="Frontend not found")
 
 
@@ -455,8 +489,6 @@ async def upload(
 
     init_ai_components()  # Initialize AI components on first use
 
-    # Reuse the shared PDF chunking helper used by pdf_loader.py
-    from pdf_loader import split_file_into_chunks
     from qdrant_client.models import Filter, FieldCondition, MatchValue
 
     if not file.filename:
@@ -492,25 +524,26 @@ async def upload(
 
     file_hash = get_hash(temp_path)
     vector_file_id = _vector_file_id(current_user.id, file.filename)
-    if existing_doc:
-        qdrant_client.delete(
-            collection_name=COLLECTION_NAME,
-            points_selector=Filter(
-                must=[
-                    FieldCondition(
-                        key="metadata.file_id",
-                        match=MatchValue(value=existing_doc.vector_file_id),
-                    )
-                ]
-            ),
-        )
 
     try:
-        chunks = split_file_into_chunks(str(temp_path))
-        for chunk in chunks:
-            chunk.metadata["file_id"] = vector_file_id
-            chunk.metadata["source"] = file.filename
-            chunk.metadata["user_id"] = current_user.id
+        chunks = prepare_document_chunks(
+            str(temp_path),
+            file_id=vector_file_id,
+            source=file.filename,
+            user_id=current_user.id,
+        )
+        if existing_doc:
+            qdrant_client.delete(
+                collection_name=COLLECTION_NAME,
+                points_selector=Filter(
+                    must=[
+                        FieldCondition(
+                            key="metadata.file_id",
+                            match=MatchValue(value=existing_doc.vector_file_id),
+                        )
+                    ]
+                ),
+            )
         vector_store.add_documents(chunks)
         _upload_to_storage(current_user.id, file.filename, file_bytes)
     finally:
