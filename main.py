@@ -24,7 +24,8 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 PDFS_DIR = BASE_DIR / "pdfs"
-QDRANT_DIR = Path("/tmp/qdrant")
+DEFAULT_QDRANT_DIR = Path("/tmp/qdrant") if os.name != "nt" else (BASE_DIR / "qdrant_local_data")
+QDRANT_DIR = Path(os.getenv("QDRANT_LOCAL_PATH", str(DEFAULT_QDRANT_DIR)))
 COLLECTION_NAME = "learning-rag"
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "local").strip().lower()
 

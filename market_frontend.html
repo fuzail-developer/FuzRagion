@@ -713,11 +713,11 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 32px
 </div>
 
 <script>
-const PROD_API = "https://rag-ai-g9s1.onrender.com";
+const SAME_ORIGIN_API = `${window.location.protocol}//${window.location.host}`;
 const LOCAL_API = ["localhost", "127.0.0.1"].includes(window.location.hostname)
   ? "http://127.0.0.1:8001"
   : `${window.location.protocol}//${window.location.hostname}:8001`;
-const API = window.location.hostname.includes("onrender.com") ? PROD_API : LOCAL_API;
+const API = window.location.hostname.includes("onrender.com") ? SAME_ORIGIN_API : LOCAL_API;
 let ACTIVE_API = API;
 const ORIGIN_API = API;
 function getApiCandidates(){
