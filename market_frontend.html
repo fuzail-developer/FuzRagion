@@ -1,0 +1,1653 @@
+﻿  <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Fuzragion • AI Document Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+}
+</script>
+<style>
+:root {
+  --black: #030308;
+  --deep: #07070f;
+  --surface: #0d0d1a;
+  --card: #111120;
+  --card2: #161628;
+  --border: #1e1e38;
+  --purple: #6c3dd6;
+  --purple-mid: #8b5cf6;
+  --purple-light: #a78bfa;
+  --purple-glow: #c4b5fd;
+  --white: #f0eeff;
+  --muted: #6060a0;
+  --muted2: #9090b8;
+  --danger: #e05252;
+  --success: #34d399;
+  --warning: #f59e0b;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans','Noto Color Emoji','Segoe UI Emoji','Apple Color Emoji',sans-serif;background:var(--black);color:var(--white);min-height:100vh;overflow-x:hidden;}
+button,input,select,textarea{-webkit-tap-highlight-color:transparent;}
+#bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:-1;opacity:0.72;filter:saturate(1.2) contrast(1.08) blur(0);}
+#stars{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:0.78;}
+.nb{position:fixed;border-radius:50%;filter:blur(130px);pointer-events:none;z-index:0;}
+.nb1{width:700px;height:700px;background:radial-gradient(circle,#3b1e8020,transparent 70%);top:-200px;right:-150px;animation:nd 22s ease-in-out infinite alternate;}
+.nb2{width:600px;height:600px;background:radial-gradient(circle,#6c3dd618,transparent 70%);bottom:-150px;left:-100px;animation:nd 28s ease-in-out infinite alternate-reverse;}
+@keyframes nd{0%{transform:translate(0,0) scale(1);}100%{transform:translate(50px,40px) scale(1.15);}}
+.app{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;}
+.screens{flex:1;}
+
+/* NAV */
+nav{display:flex;align-items:center;justify-content:space-between;padding:0 32px;height:60px;border-bottom:1px solid var(--border);background:rgba(3,3,8,0.92);backdrop-filter:blur(24px);position:sticky;top:0;z-index:100;}
+.logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;background:linear-gradient(135deg,var(--purple-light),var(--white));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.logo em{-webkit-text-fill-color:var(--purple-mid);font-style:normal;}
+.nav-tabs{display:flex;gap:2px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;padding:3px;}
+.nav-tab{padding:6px 16px;border-radius:8px;border:none;background:transparent;color:var(--muted2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:6px;white-space:nowrap;}
+.nav-tab:hover{color:var(--white);}
+.nav-tab.active{background:var(--purple);color:white;box-shadow:0 0 16px #6c3dd650;}
+.nav-right{display:flex;align-items:center;gap:8px;}
+.nav-badge{font-size:12px;color:var(--muted2);padding:4px 10px;background:var(--surface);border:1px solid var(--border);border-radius:7px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.btn-sm{padding:6px 14px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--muted2);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all 0.2s;}
+.btn-sm:hover{border-color:var(--danger);color:var(--danger);}
+.btn-pay{border-color:#6c3dd450;color:var(--purple-light);background:#6c3dd415;}
+.btn-pay:hover{border-color:var(--purple);color:var(--white);background:#6c3dd434;}
+
+/* SCREENS */
+.screen{display:none;flex:1;}
+.screen.active{display:flex;flex-direction:column;}
+
+/* -- AUTH -- */
+#sc-auth{align-items:center;justify-content:center;padding:40px 20px;min-height:calc(100vh - 60px);}
+.auth-card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:36px 32px;position:relative;overflow:hidden;}
+.auth-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--purple),var(--purple-glow),transparent);}
+.auth-logo{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;text-align:center;margin-bottom:4px;background:linear-gradient(135deg,var(--purple-light),var(--white));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.auth-sub{text-align:center;color:var(--muted2);font-size:12px;margin-bottom:24px;}
+.auth-tabs{display:flex;background:var(--surface);border-radius:9px;padding:3px;margin-bottom:22px;border:1px solid var(--border);}
+.atab{flex:1;padding:8px;border:none;background:transparent;color:var(--muted2);font-family:'DM Sans',sans-serif;font-size:13px;border-radius:7px;cursor:pointer;transition:all 0.2s;}
+.atab.active{background:var(--purple);color:white;}
+.fg{margin-bottom:14px;}
+.fl{display:block;font-size:11px;color:var(--muted2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;}
+.fi{width:100%;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--white);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:all 0.2s;}
+.fi:focus{border-color:var(--purple);box-shadow:0 0 0 3px #6c3dd418;}
+.fi::placeholder{color:var(--muted);}
+.btn-auth{width:100%;padding:12px;background:linear-gradient(135deg,var(--purple),var(--purple-mid));border:none;border-radius:10px;color:white;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:500;cursor:pointer;margin-top:4px;transition:all 0.3s;box-shadow:0 4px 20px #6c3dd440;}
+.btn-auth:hover{transform:translateY(-1px);box-shadow:0 6px 28px #6c3dd460;}
+.auth-err{color:var(--danger);font-size:12px;text-align:center;margin-top:10px;padding:8px;background:#e0525212;border:1px solid #e0525230;border-radius:7px;display:none;}
+
+/* -- CHAT -- */
+#sc-chat{flex-direction:row;height:calc(100dvh - 60px);overflow:hidden;}
+
+/* History sidebar */
+.hist-sidebar{width:220px;background:var(--deep);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;}
+.hs-top{padding:12px;border-bottom:1px solid var(--border);}
+.btn-new{width:100%;padding:9px;background:linear-gradient(135deg,var(--purple),var(--purple-mid));border:none;border-radius:8px;color:white;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
+.hs-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:10px 12px 4px;}
+.hist-list{flex:1;overflow-y:auto;padding:6px;}
+.hist-list::-webkit-scrollbar{width:3px;}
+.hist-list::-webkit-scrollbar-thumb{background:var(--border);}
+.hist-item{padding:9px 10px;border-radius:8px;cursor:pointer;transition:all 0.15s;border:1px solid transparent;margin-bottom:3px;}
+.hist-item:hover{background:var(--surface);}
+.hist-item.active{background:#6c3dd420;border-color:#6c3dd440;}
+.hi-title{font-size:12px;color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px;}
+.hi-date{font-size:10px;color:var(--muted);}
+
+/* Doc sidebar */
+.doc-sidebar{width:220px;background:var(--deep);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:12px;gap:4px;overflow-y:auto;flex-shrink:0;}
+.doc-sidebar::-webkit-scrollbar{width:3px;}
+.ds-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:6px 8px 2px;}
+.doc-chip{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;border:1px solid transparent;cursor:pointer;transition:all 0.15s;font-size:12px;color:var(--muted2);}
+.doc-chip:hover{background:var(--surface);color:var(--white);}
+.doc-chip.active{background:#6c3dd420;border-color:#6c3dd440;color:var(--purple-light);}
+.dc-dot{width:5px;height:5px;border-radius:50%;background:var(--success);flex-shrink:0;}
+.dc-dot.all{background:var(--purple-light);}
+.dc-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sb-plan{margin-top:auto;padding:12px;background:var(--surface);border-radius:9px;border:1px solid var(--border);}
+.sp-title{font-size:11px;font-weight:500;color:var(--purple-light);margin-bottom:2px;}
+.sp-cnt{font-size:10px;color:var(--muted2);margin-bottom:7px;}
+.sp-bar{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:8px;}
+.sp-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--purple-light));border-radius:2px;transition:width 0.5s;}
+.btn-upg{width:100%;padding:7px;background:linear-gradient(135deg,var(--purple),var(--purple-mid));border:none;border-radius:7px;color:white;font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;}
+
+/* Chat main */
+.chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.chat-topbar{display:flex;align-items:center;padding:12px 18px;border-bottom:1px solid #ffffff14;gap:10px;background:linear-gradient(180deg,#0f1022,#0b0c18);}
+.chat-topbar h2{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;flex:1;}
+.chat-topbar button.btn-expand{padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--muted2);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all 0.2s;}
+.chat-topbar button.btn-expand:hover{border-color:var(--purple);color:var(--white);}
+.filter-lbl{font-size:11px;color:var(--purple-light);background:#6c3dd415;padding:3px 10px;border-radius:100px;border:1px solid #6c3dd430;}
+.api-st{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted2);}
+.api-dot{width:5px;height:5px;border-radius:50%;background:var(--success);}
+.msg-btn{padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--purple-light);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;transition:all 0.2s;}
+.msg-btn:hover{background:var(--purple);color:white;border-color:var(--purple);}
+
+/* DASHBOARD */
+#sc-dash{align-items:flex-start;padding:30px 40px;overflow-y:auto;background:var(--black);}
+.dash-wrap{max-width:1200px;width:100%;}
+.dash-hdr{margin-bottom:30px;}
+.dash-hdr h1{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--white);}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:40px;}
+.dcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:center;transition:all 0.2s;}
+.dcard:hover{border-color:var(--purple);background:var(--card2);}
+.dc-num{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--purple-light);margin-bottom:8px;}
+.dc-lbl{font-size:12px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.5px;}
+.dash-section{margin-bottom:40px;}
+.dash-section h3{font-size:16px;font-weight:700;color:var(--white);margin-bottom:14px;}
+.query-list,.topic-list{display:flex;flex-direction:column;gap:8px;}
+.qitem,.titem{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted2);}
+.qitem:hover,.titem:hover{background:var(--card2);border-color:var(--purple);}
+.qdate{font-size:11px;color:var(--muted);}
+#sc-chat.expanded .hist-sidebar,#sc-chat.expanded .doc-sidebar{display:none;}
+#sc-chat.expanded .chat-main{flex:1;}
+.voice-btn{width:44px;height:44px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,0.04);color:var(--white);font-size:18px;cursor:pointer;transition:all 0.2s;margin:0 8px;}
+.voice-btn:hover{border-color:var(--purple);background:rgba(110,61,214,0.16);}
+.voice-btn[disabled]{cursor:not-allowed;opacity:0.4;}
+.icon-btn{position:relative;display:flex;align-items:center;justify-content:center;}
+.mic-glyph{position:relative;width:10px;height:14px;border:2px solid #d9d5ff;border-bottom-left-radius:8px;border-bottom-right-radius:8px;border-top-left-radius:6px;border-top-right-radius:6px;background:transparent;}
+.mic-glyph::before{content:'';position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);width:2px;height:5px;background:#d9d5ff;}
+.mic-glyph::after{content:'';position:absolute;left:50%;bottom:-10px;transform:translateX(-50%);width:12px;height:2px;background:#d9d5ff;border-radius:2px;}
+.voice-btn.listening{border-color:var(--success);box-shadow:0 0 0 3px #34d39926;}
+.send-glyph{display:block;width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:12px solid #ffffff;margin-left:2px;}
+.api-dot.off{background:var(--danger);}
+.api-dot.off{background:var(--danger);}
+
+.chat-msgs{flex:1;overflow-y:auto;padding:22px 20px;display:flex;flex-direction:column;gap:14px;background:linear-gradient(180deg,#0a0b18d9,#06070fd9);}
+.chat-msgs::-webkit-scrollbar{width:3px;}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+.chat-welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;gap:12px;padding:36px 32px;border:1px solid #ffffff14;border-radius:18px;background:linear-gradient(160deg,#15142bcc,#0e0f1fcc);backdrop-filter:blur(8px);}
+.wlc-icon{font-size:34px;line-height:1;width:70px;height:70px;display:flex;align-items:center;justify-content:center;border-radius:18px;background:radial-gradient(circle at 30% 30%,#bca8ff,#6c3dd6);box-shadow:0 12px 28px #6c3dd64a;}
+.wlc-title{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--white);letter-spacing:0.2px;}
+.wlc-sub{font-size:13px;color:var(--muted2);max-width:340px;line-height:1.6;}
+.wlc-tips{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;max-width:560px;width:100%;}
+.tip{padding:12px 13px;background:linear-gradient(170deg,#1a1a33,#14142a);border:1px solid #ffffff1e;border-radius:12px;font-size:11px;color:var(--muted2);text-align:left;cursor:pointer;transition:all 0.2s;}
+.tip:hover{border-color:#8c6cff;color:var(--white);transform:translateY(-1px);}
+.tip strong{display:block;color:var(--white);margin-bottom:4px;font-size:12px;}
+
+.msg{display:flex;gap:9px;animation:mIn 0.25s ease;}
+@keyframes mIn{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
+.msg.user{flex-direction:row-reverse;}
+.mav{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+.msg.ai .mav{background:linear-gradient(135deg,#2d1b69,var(--purple));}
+.msg.user .mav{background:var(--card2);border:1px solid var(--border);}
+.mbody{max-width:65%;padding:11px 14px;border-radius:12px;font-size:13px;line-height:1.65;}
+.msg.ai .mbody{background:var(--card2);border:1px solid var(--border);border-top-left-radius:3px;}
+.msg.user .mbody{background:linear-gradient(135deg,var(--purple),var(--purple-mid));color:white;border-top-right-radius:3px;}
+.msrc{font-size:10px;color:var(--purple-light);margin-top:6px;padding:3px 8px;background:#6c3dd418;border-radius:5px;display:inline-block;}
+
+.chat-bottom{padding:12px 18px;border-top:1px solid #ffffff12;background:linear-gradient(180deg,#090a14,#07070f);}
+.limit-bar{display:flex;align-items:center;justify-content:space-between;padding:7px 11px;background:#6c3dd415;border:1px solid #6c3dd435;border-radius:7px;margin-bottom:9px;font-size:11px;color:var(--purple-light);}
+.chat-row{display:flex;gap:7px;align-items:flex-end;}
+.chat-ta{flex:1;padding:11px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--white);font-family:'DM Sans',sans-serif;font-size:13px;resize:none;outline:none;max-height:100px;transition:border-color 0.2s;}
+.chat-ta:focus{border-color:var(--purple);}
+.chat-ta::placeholder{color:var(--muted);}
+.btn-send{width:42px;height:42px;background:linear-gradient(135deg,var(--purple),var(--purple-mid));border:none;border-radius:9px;color:white;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0;}
+.btn-send:hover{transform:scale(1.05);}
+.btn-send:disabled{opacity:0.4;cursor:not-allowed;transform:none;}
+.typing{display:flex;gap:3px;align-items:center;}
+.typing span{width:6px;height:6px;background:var(--purple-light);border-radius:50%;animation:tb 1.2s infinite;}
+.typing span:nth-child(2){animation-delay:0.2s;}
+.typing span:nth-child(3){animation-delay:0.4s;}
+@keyframes tb{0%,60%,100%{transform:translateY(0);opacity:0.4;}30%{transform:translateY(-4px);opacity:1;}}
+
+/* -- DOCUMENTS -- */
+#sc-docs{padding:24px 32px;overflow-y:auto;}
+.docs-hdr{margin-bottom:20px;}
+.docs-hdr h1{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:3px;}
+.docs-hdr p{font-size:12px;color:var(--muted2);}
+.upload-zone{border:2px dashed var(--border);border-radius:13px;padding:36px 20px;text-align:center;cursor:pointer;transition:all 0.25s;margin-bottom:20px;background:var(--card);position:relative;}
+.upload-zone:hover{border-color:var(--purple);background:#6c3dd408;}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.uz-icon{font-size:34px;margin-bottom:8px;}
+.uz-title{font-size:14px;font-weight:500;margin-bottom:3px;}
+.uz-sub{font-size:11px;color:var(--muted2);}
+.uz-prog{display:none;margin-top:12px;}
+.prog-bar{height:3px;background:var(--border);border-radius:2px;overflow:hidden;}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--purple-light));border-radius:2px;width:0;transition:width 0.3s;}
+.uz-st{font-size:11px;color:var(--purple-light);margin-bottom:5px;}
+.doc-list{display:flex;flex-direction:column;gap:9px;}
+.doc-row{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--card);border:1px solid var(--border);border-radius:11px;transition:all 0.2s;}
+.doc-row:hover{border-color:#6c3dd440;}
+.dr-icon{font-size:26px;flex-shrink:0;}
+.dr-info{flex:1;}
+.dr-name{font-size:13px;font-weight:500;margin-bottom:2px;}
+.dr-meta{font-size:11px;color:var(--muted2);}
+.dr-badge{font-size:10px;padding:3px 9px;border-radius:100px;background:#34d39915;color:var(--success);border:1px solid #34d39930;}
+.dr-btns{display:flex;gap:6px;}
+.btn-cd{padding:6px 11px;background:#6c3dd420;border:1px solid #6c3dd440;border-radius:6px;color:var(--purple-light);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;}
+.btn-cd:hover{background:#6c3dd440;}
+.btn-dd{padding:6px 10px;background:#e0525215;border:1px solid #e0525230;border-radius:6px;color:var(--danger);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;}
+.doc-empty{text-align:center;padding:36px;color:var(--muted2);font-size:13px;}
+
+/* -- INFO -- */
+#sc-info{padding:32px;overflow-y:auto;}
+.info-wrap{max-width:860px;margin:0 auto;}
+.info-hero{text-align:center;margin-bottom:40px;padding:40px 20px;background:linear-gradient(160deg,#111120,#1a1035);border:1px solid var(--border);border-radius:20px;position:relative;overflow:hidden;}
+.info-hero::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--purple),var(--purple-glow),transparent);}
+.info-hero h1{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;margin-bottom:10px;color:var(--white);}
+.info-hero p{color:var(--muted2);font-size:15px;max-width:600px;margin:0 auto;line-height:1.6;}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:28px;}
+@media(max-width:640px){.info-grid{grid-template-columns:1fr;}}
+.info-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;transition:all 0.2s;}
+.info-card:hover{border-color:#6c3dd440;transform:translateY(-2px);}
+.ic-icon{font-size:28px;margin-bottom:10px;}
+.ic-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:6px;}
+.ic-text{font-size:13px;color:var(--muted2);line-height:1.6;}
+.comp-table{width:100%;border-collapse:collapse;margin-bottom:28px;}
+.comp-table th{padding:12px 16px;background:var(--card2);border:1px solid var(--border);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;text-align:left;}
+.comp-table td{padding:10px 16px;border:1px solid var(--border);font-size:13px;color:var(--muted2);}
+.comp-table tr:hover td{background:var(--card2);}
+.comp-table .hi{color:var(--success);}
+.comp-table .logo-cell{color:var(--purple-light);font-weight:500;}
+.plans-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:640px){.plans-grid{grid-template-columns:1fr;}}
+
+/* -- BILLING -- */
+#sc-pay{padding:32px;overflow-y:auto;align-items:center;}
+.pay-wrap{max-width:800px;width:100%;}
+.pay-hdr{text-align:center;margin-bottom:32px;}
+.pay-hdr h1{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;margin-bottom:8px;color:var(--white);}
+.pay-hdr p{color:var(--muted2);font-size:14px;}
+.pay-cur{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:var(--card2);border:1px solid var(--border);border-radius:11px;margin-bottom:24px;}
+.pc-l .pc-lbl{font-size:11px;color:var(--muted2);margin-bottom:3px;}
+.pc-plan{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--purple-light);}
+.pc-r{font-size:12px;color:var(--muted2);}
+.pay-cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+@media(max-width:600px){.pay-cards{grid-template-columns:1fr;}}
+.pay-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px 22px;position:relative;transition:all 0.3s;}
+.pay-card.feat{border-color:var(--purple);background:linear-gradient(160deg,#111120,#180f30);box-shadow:0 0 36px #6c3dd428;}
+.pay-card:hover{transform:translateY(-3px);}
+.pc-badge{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--purple),var(--purple-mid));padding:3px 14px;border-radius:100px;font-size:11px;font-weight:500;white-space:nowrap;}
+.pc-name{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-bottom:7px;}
+.pc-price{font-family:'Syne',sans-serif;font-size:36px;font-weight:800;margin-bottom:3px;}
+.pc-price span{font-size:13px;color:var(--muted2);font-weight:400;font-family:'DM Sans',sans-serif;}
+.pc-desc{font-size:12px;color:var(--muted2);margin-bottom:18px;}
+.pc-feats{list-style:none;margin-bottom:20px;}
+.pc-feats li{font-size:12px;color:var(--muted2);padding:7px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+.pc-feats li::before{content:'?';color:var(--purple-light);font-size:10px;flex-shrink:0;}
+.pc-feats li.hi{color:var(--white);}
+.btn-buy{display:block;width:100%;padding:12px;text-align:center;text-decoration:none;background:linear-gradient(135deg,var(--purple),var(--purple-mid));border:none;border-radius:9px;color:white;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.3s;box-shadow:0 4px 16px #6c3dd440;}
+.btn-buy:hover{box-shadow:0 6px 24px #6c3dd470;transform:translateY(-1px);}
+.btn-buy.out{background:transparent;border:1px solid var(--border);box-shadow:none;color:var(--white);}
+.btn-buy.out:hover{border-color:var(--purple);box-shadow:none;}
+.pay-note{padding:16px 18px;background:var(--card2);border:1px solid var(--border);border-radius:11px;font-size:12px;color:var(--muted2);line-height:1.7;}
+.pay-note strong{color:var(--white);}
+.pay-note a{color:var(--purple-light);text-decoration:none;}
+
+/* -- FEEDBACK / REPORT -- */
+#sc-feedback{padding:32px;overflow-y:auto;align-items:center;}
+.fb-wrap{max-width:640px;width:100%;}
+.fb-hdr{text-align:center;margin-bottom:28px;}
+.fb-hdr h1{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;margin-bottom:6px;}
+.fb-hdr p{color:var(--muted2);font-size:13px;}
+.fb-tabs{display:flex;gap:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:3px;margin-bottom:24px;}
+.fbtab{flex:1;padding:9px;border:none;background:transparent;color:var(--muted2);font-family:'DM Sans',sans-serif;font-size:13px;border-radius:8px;cursor:pointer;transition:all 0.2s;text-align:center;}
+.fbtab.active{background:var(--purple);color:white;}
+.fb-form{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px 24px;}
+.fb-form h2{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;margin-bottom:18px;}
+.rating-stars{display:flex;gap:8px;margin-bottom:16px;}
+.star{font-size:28px;cursor:pointer;transition:transform 0.1s;filter:grayscale(1);opacity:0.4;}
+.star.active{filter:none;opacity:1;transform:scale(1.1);}
+.fb-ta{width:100%;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--white);font-family:'DM Sans',sans-serif;font-size:13px;resize:vertical;min-height:100px;outline:none;transition:border-color 0.2s;margin-bottom:14px;}
+.fb-ta:focus{border-color:var(--purple);}
+.fb-ta::placeholder{color:var(--muted);}
+.fb-select{width:100%;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-radius:9px;color:var(--white);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;margin-bottom:14px;cursor:pointer;}
+.btn-submit{width:100%;padding:12px;background:linear-gradient(135deg,var(--purple),var(--purple-mid));border:none;border-radius:9px;color:white;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.3s;}
+.btn-submit:hover{transform:translateY(-1px);box-shadow:0 6px 20px #6c3dd450;}
+.fb-success{text-align:center;padding:32px;display:none;}
+.fb-success-icon{font-size:48px;margin-bottom:12px;}
+.fb-success h3{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:8px;}
+.fb-success p{color:var(--muted2);font-size:13px;}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(3,3,8,0.92);backdrop-filter:blur(12px);z-index:200;display:none;align-items:center;justify-content:center;}
+.modal-bg.show{display:flex;}
+.modal{background:var(--card);border:1px solid var(--purple);border-radius:20px;padding:36px 32px;max-width:420px;width:90%;text-align:center;position:relative;}
+.modal::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--purple),var(--purple-glow),transparent);border-radius:20px 20px 0 0;}
+.modal-icon{font-size:40px;margin-bottom:10px;}
+.modal-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:8px;}
+.modal-desc{color:var(--muted2);font-size:13px;line-height:1.6;margin-bottom:22px;}
+.modal-btns{display:flex;flex-direction:column;gap:8px;}
+.btn-mpay{display:block;padding:13px;background:linear-gradient(135deg,var(--purple),var(--purple-mid));border:none;border-radius:9px;color:white;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;text-decoration:none;transition:all 0.3s;}
+.btn-mclose{background:none;border:none;color:var(--muted2);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;padding:6px;}
+.btn-mclose:hover{color:var(--white);}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;right:20px;padding:11px 15px;background:var(--card2);border:1px solid var(--border);border-radius:9px;font-size:13px;z-index:300;transform:translateY(70px);opacity:0;transition:all 0.3s;max-width:260px;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast.success{border-color:var(--success);}
+.toast.error{border-color:var(--danger);}
+.toast.warning{border-color:var(--warning);}
+.theme-fab{position:fixed;right:16px;bottom:84px;z-index:350;border:1px solid #ffffff26;background:linear-gradient(160deg,#23233f,#1a1b31);color:var(--white);padding:10px 12px;border-radius:999px;cursor:pointer;font-size:12px;box-shadow:0 8px 24px #00000055;}
+@media (max-width: 900px){
+  html,body{height:100dvh;overflow-x:hidden;}
+  nav{padding:0 12px;height:56px;}
+  .logo{font-size:18px;}
+  .nav-tabs{display:none;}
+  .nav-right{gap:6px;min-width:0;}
+  .nav-badge{display:none;}
+  .btn-sm{padding:6px 10px;font-size:11px;min-height:40px;}
+  .btn-pay{display:none;}
+  .hist-sidebar,.doc-sidebar{display:none !important;}
+  #sc-chat{height:calc(100dvh - 56px);}
+  .chat-main{min-width:0;}
+  .chat-topbar{padding:8px 10px;gap:6px;flex-wrap:wrap;}
+  .chat-topbar h2{font-size:13px;}
+  #mode-select{max-width:44vw;}
+  .filter-lbl{max-width:42vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mbody{max-width:82%;}
+  .wlc-title{font-size:26px;}
+  .wlc-tips{grid-template-columns:1fr;}
+  #sc-auth{padding:18px 12px;min-height:calc(100dvh - 56px);overflow-y:auto;}
+  #sc-docs,#sc-info,#sc-pay,#sc-feedback,#sc-dash{padding:16px 12px;}
+  .docs-hdr h1,.pay-hdr h1,.fb-hdr h1,.dash-hdr h1,.info-hero h1{font-size:24px;}
+  .doc-row{padding:12px;gap:8px;flex-wrap:wrap;}
+  .dr-btns{width:100%;}
+  .btn-cd,.btn-dd{flex:1;min-height:40px;}
+  .comp-table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .comp-table th,.comp-table td{white-space:nowrap;}
+  .pay-cur{flex-direction:column;align-items:flex-start;gap:8px;}
+  .pay-card{padding:22px 14px;}
+  .pc-price{font-size:30px;}
+  .pc-badge{font-size:10px;top:-9px;}
+  .btn-buy{min-height:44px;display:flex;align-items:center;justify-content:center;}
+  .modal{width:94%;padding:24px 16px;border-radius:14px;}
+  .modal-title{font-size:18px;}
+  .modal-desc{font-size:12px;}
+  .toast{left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));max-width:none;}
+  .chat-bottom{padding:10px 12px calc(10px + env(safe-area-inset-bottom));}
+  .chat-row{gap:6px;}
+  .chat-ta{font-size:16px;min-height:44px;}
+  .btn-send,.voice-btn{min-width:44px;min-height:44px;}
+  .theme-fab{right:12px;bottom:calc(72px + env(safe-area-inset-bottom));}
+  .auth-card{max-width:100%;padding:24px 16px;border-radius:14px;}
+  .btn-auth,.atab,.btn-send,.voice-btn{touch-action:manipulation;}
+  .btn-auth,.atab{min-height:44px;}
+  .fi{font-size:16px;} /* prevent iOS input zoom */
+  .nb{display:none !important;}
+}
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<canvas id="stars"></canvas>
+<div class="nb nb1"></div>
+<div class="nb nb2"></div>
+<div class="toast" id="toast"></div>
+<button id="theme-fab" class="theme-fab" onclick="cycleTheme()">Theme</button>
+
+<!-- PAYWALL -->
+<div class="modal-bg" id="paywall">
+  <div class="modal">
+    <div class="modal-icon">LOCK</div>
+    <div class="modal-title">Free Limit Reached</div>
+    <div class="modal-desc">You've used all 5 free chats and 1 free PDF upload. Pay 9999rs/month to unlock unlimited access.</div>
+    <div class="modal-btns">
+      <a class="btn-mpay" href="https://razorpay.me/@afreen9836" target="_blank" onclick="closePaywall()">Pay 9999rs via Razorpay</a>
+      <button class="btn-mclose" onclick="closePaywall()">Maybe later</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <!-- NAV -->
+  <nav id="main-nav" style="display:none">
+    <div class="logo">Fuzra<em>gion</em></div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" id="tab-chat" onclick="goTo('chat')">Chat</button>
+      <button class="nav-tab" id="tab-docs" onclick="goTo('docs')">📄 Documents</button>
+      <button class="nav-tab" id="tab-info" onclick="goTo('info')">ℹ️ About</button>
+      <button class="nav-tab" id="tab-dash" onclick="goTo('dash')">📊 Dashboard</button>
+      <button class="nav-tab" id="tab-pay" onclick="goTo('pay')">👛 price</button>
+      <button class="nav-tab" id="tab-feedback" onclick="goTo('feedback')">💬 Feedback</button>
+    </div>
+    <div class="nav-right">
+      <div class="nav-badge" id="nav-email">✉️</div>
+      <button class="btn-sm btn-pay" onclick="goTo('pay')">👛 price</button>
+      <button class="btn-sm" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="screens">
+  <!-- -- AUTH -- -->
+  <div class="screen active" id="sc-auth">
+    <div class="auth-card">
+      <div class="auth-logo">Fuzragion</div>
+      <div class="auth-sub">AI Document Intelligence for Professionals</div>
+      <div class="auth-tabs">
+        <button class="atab active" onclick="atab(this,'login')">Login</button>
+        <button class="atab" onclick="atab(this,'signup')">Sign Up</button>
+      </div>
+      <div id="f-login">
+        <div class="fg"><label class="fl">Email</label><input class="fi" id="le" type="email" inputmode="email" autocomplete="email" placeholder="you@company.com"></div>
+        <div class="fg"><label class="fl">Password</label><input class="fi" id="lp" type="password" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+        <button class="btn-auth" onclick="doLogin()">Login to Fuzragion ?</button>
+        <div class="auth-err" id="lerr"></div>
+      </div>
+      <div id="f-signup" style="display:none">
+        <div class="fg"><label class="fl">Full Name</label><input class="fi" id="sn" type="text" autocomplete="name" placeholder="Your Name"></div>
+        <div class="fg"><label class="fl">Email</label><input class="fi" id="se" type="email" inputmode="email" autocomplete="email" placeholder="you@company.com"></div>
+        <div class="fg"><label class="fl">Phone Number</label><input class="fi" id="sph" type="tel" inputmode="tel" autocomplete="tel" placeholder="+919876543210"></div>
+        <div class="fg"><label class="fl">Password</label><input class="fi" id="sp" type="password" autocomplete="new-password" placeholder="Min 6 characters" onkeydown="if(event.key==='Enter')doSignup()"></div>
+        <button class="btn-auth" onclick="doSignup()">Create Account - 5 Free Chats</button>
+        <div class="auth-err" id="serr"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- -- CHAT -- -->
+  <div class="screen" id="sc-chat">
+    <!-- History Sidebar -->
+    <div class="hist-sidebar">
+      <div class="hs-top">
+        <button class="btn-new" onclick="newChat()">New Chat</button>
+      </div>
+      <div class="hs-label">Recent Chats</div>
+      <div class="hist-list" id="hist-list">
+        <div style="font-size:11px;color:var(--muted);padding:8px 10px">No chats yet</div>
+      </div>
+    </div>
+
+    <!-- Doc Sidebar -->
+    <div class="doc-sidebar">
+      <div class="ds-label">Documents</div>
+      <div id="doc-chips">
+        <div style="font-size:11px;color:var(--muted);padding:6px 8px">Loading...</div>
+      </div>
+      <div class="sb-plan">
+        <div class="sp-title" id="plan-lbl">Free Plan</div>
+        <div class="sp-cnt" id="plan-cnt">0 / 5 chats used • 0 / 1 PDF uploaded</div>
+        <div class="sp-bar"><div class="sp-fill" id="plan-fill" style="width:0%"></div></div>
+        <button class="btn-upg" onclick="goTo('pay')">Upgrade 9999rs</button>
+      </div>
+    </div>
+
+    <!-- Chat Main -->
+    <div class="chat-main">
+      <div class="chat-topbar">
+        <h2 id="chat-title">New Chat</h2>
+        <select id="mode-select" onchange="setMode(this.value)" style="padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer">
+          <option value="normal">Study Mode</option>
+          <option value="business">Business Mode</option>
+          <option value="legal">Legal Mode</option>
+          <option value="research">Research Mode</option>
+        </select>
+        <div class="filter-lbl" id="filter-lbl">All Documents</div>
+        <button class="btn-expand" id="expand-btn" onclick="toggleScreen()">Expand</button>
+        <div class="api-st"><div class="api-dot" id="api-dot"></div><span id="api-lbl">Checking...</span></div>
+      </div>
+      <div class="chat-msgs" id="chat-msgs">
+        <div class="chat-welcome" id="chat-welcome">
+          <div class="wlc-icon">🤖</div>
+          <div class="wlc-title">Ask me anything</div>
+          <div class="wlc-sub">Upload documents in the Documents tab, then ask questions here. I support English, Urdu, Hindi, and more.</div>
+          <div class="wlc-tips">
+            <div class="tip" onclick="useTip(this)"><strong>📝 Summarize</strong>What is the main topic of this document?</div>
+            <div class="tip" onclick="useTip(this)"><strong>🔑 Key Points</strong>What are the key points mentioned?</div>
+            <div class="tip" onclick="useTip(this)"><strong>⚖️ Compare</strong>What differences exist between sections?</div>
+            <div class="tip" onclick="useTip(this)"><strong>🔎 Find Info</strong>What does the document say about...</div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-bottom">
+        <div class="limit-bar" id="limit-bar">
+          <span>Free Plan - <strong id="chats-left">5 chats remaining</strong></span>
+          <button onclick="goTo('pay')" style="background:var(--purple);border:none;color:white;padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;">Upgrade</button>
+        </div>
+        <div class="chat-row">
+          <textarea class="chat-ta" id="chat-input" rows="1" placeholder="Ask anything about your documents or tap mic..." onkeydown="handleKey(event)"></textarea>
+          <button class="btn-sm voice-btn icon-btn" id="voice-btn" onclick="toggleVoice()" title="Voice input" aria-label="Voice input"><span class="mic-glyph" aria-hidden="true"></span></button>
+          <button class="btn-send icon-btn" id="send-btn" onclick="sendMsg()" title="Send message" aria-label="Send message"><span class="send-glyph" aria-hidden="true"></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- -- DOCUMENTS -- -->
+  <div class="screen" id="sc-docs">
+    <div class="docs-hdr">
+      <h1>📚 My Documents</h1>
+      <p>📤 Upload PDFs, TXT, or MD • indexed automatically and ready to chat</p>
+    </div>
+    <div class="upload-zone">
+      <input type="file" accept=".pdf" onchange="uploadFiles(event)" multiple>
+      <div class="uz-icon">📤</div>
+      <div class="uz-title">Drop files here or click to upload</div>
+      <div class="uz-sub">PDF, TXT, MD • any size supported</div>
+      <div class="uz-prog" id="uz-prog">
+        <div class="uz-st" id="uz-st">Uploading...</div>
+        <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
+      </div>
+    </div>
+    <div class="doc-list" id="doc-list">
+      <div class="doc-empty">📭 No documents yet • upload your first file above</div>
+    </div>
+  </div>
+
+  <!-- -- INFO -- -->
+  <div class="screen" id="sc-info">
+    <div class="info-wrap">
+      <div class="info-hero">
+        <h1>✨ What is Fuzragion?</h1>
+        <p>An AI system designed to understand your documents and give precise answers instantly. Instead of searching manually through hundreds of pages, it reads, analyzes, and delivers the exact information you need within seconds.</p>
+      </div>
+
+      <div class="info-grid">
+        <div class="info-card"><div class="ic-icon">🧠</div><div class="ic-title">Different from ChatGPT</div><div class="ic-text">Unlike general AI tools, this system works only on your uploaded documents • no random internet data, no irrelevant answers, 100% context-based responses from your files.</div></div>
+        <div class="info-card"><div class="ic-icon">📖</div><div class="ic-title">Document-Based Intelligence</div><div class="ic-text">All answers are generated strictly from your documents. If the answer is not found, it clearly tells you instead of guessing or making things up.</div></div>
+        <div class="info-card"><div class="ic-icon">📚</div><div class="ic-title">Handles Large Files</div><div class="ic-text">Built to process large documents efficiently, including files with hundreds or thousands of pages. Automatically breaks them into smaller parts for fast retrieval.</div></div>
+        <div class="info-card"><div class="ic-icon">🔎</div><div class="ic-title">Source Transparency</div><div class="ic-text">Each answer includes the exact file name and page reference, so you always know where the information is coming from.</div></div>
+        <div class="info-card"><div class="ic-icon">🔒</div><div class="ic-title">Data Security</div><div class="ic-text">Your data is completely private and secure. No external training usage, no data sharing, full control over your documents.</div></div>
+        <div class="info-card"><div class="ic-icon">🌐</div><div class="ic-title">Multi-Language Support</div><div class="ic-text">Automatically detects your query language and responds accordingly • English, Urdu, Hindi, Arabic and more.</div></div>
+        <div class="info-card"><div class="ic-icon">⚡</div><div class="ic-title">Performance & Speed</div><div class="ic-text">Optimized for fast results. Even with large document sets, answers are generated in seconds using advanced vector search technology.</div></div>
+        <div class="info-card"><div class="ic-icon">🔌</div><div class="ic-title">Integration Ready</div><div class="ic-text">Can be integrated into websites, applications, or internal tools using APIs, making it suitable for any business workflow.</div></div>
+      </div>
+
+      <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:16px;text-align:center;">⚔️ Fuzragion vs NotebookLM</h2>
+      <table class="comp-table">
+        <tr><th>Feature</th><th>NotebookLM</th><th class="logo-cell">Fuzragion ?</th></tr>
+        <tr><td>Data Privacy</td><td>Google cloud stored</td><td class="hi">Fully private</td></tr>
+        <tr><td>Data Control</td><td>Limited</td><td class="hi">Full control</td></tr>
+        <tr><td>Customization</td><td>Fixed features</td><td class="hi">Fully customizable</td></tr>
+        <tr><td>Source Citation</td><td>Basic references</td><td class="hi">Exact file + page</td></tr>
+        <tr><td>Multi-language</td><td>Mostly English</td><td class="hi">Auto detect + flexible</td></tr>
+        <tr><td>File Handling</td><td>Limited</td><td class="hi">Multi-file + filtering</td></tr>
+        <tr><td>Business Use</td><td>Personal/research</td><td class="hi">SaaS-ready</td></tr>
+        <tr><td>Pricing Control</td><td>Fixed by Google</td><td class="hi">You decide</td></tr>
+      </table>
+
+      <div style="text-align:center;padding:20px;background:linear-gradient(135deg,#111120,#1a1035);border:1px solid var(--border);border-radius:14px;margin-bottom:28px;">
+        <div style="font-size:13px;color:var(--muted2);margin-bottom:8px;">One-Line Winner</div>
+        <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--white);">"NotebookLM is a tool, Fuzragion is a fully private, customizable AI solution that works only on your documents • more accurate, secure, and business-ready."</div>
+      </div>
+
+      <div class="plans-grid">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;">
+          <div style="font-size:22px;margin-bottom:8px;">🧪</div>
+          <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:6px;">Free Plan</div>
+          <div style="font-size:13px;color:var(--muted2);line-height:1.6;">5 chats & 1 PDF upload for testing • Basic document interaction • Ideal for trial and evaluation</div>
+        </div>
+        <div style="background:linear-gradient(160deg,#111120,#1a1035);border:1px solid var(--purple);border-radius:14px;padding:22px;">
+          <div style="font-size:22px;margin-bottom:8px;">🚀</div>
+          <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:6px;">Pro Plan • 9999rs/month</div>
+          <div style="font-size:13px;color:var(--muted2);line-height:1.6;">Unlimited chats • Faster processing • Higher accuracy • Full access to all features</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- -- BILLING -- -->
+  <div class="screen" id="sc-pay">
+    <div class="pay-wrap">
+      <div class="pay-hdr">
+        <h1>🚀 Upgrade Fuzragion</h1>
+        <p>🔓 Unlock unlimited chats and document uploads</p>
+      </div>
+      <div class="pay-cur">
+        <div class="pc-l"><div class="pc-lbl">📌 Current Plan</div><div class="pc-plan" id="cur-plan">🆓 Free • 5 chats</div></div>
+        <div class="pc-r" id="cur-status">✅ 5 chats available</div>
+      </div>
+      <div class="pay-cards">
+        <div class="pay-card feat">
+          <div class="pc-badge">⭐ Recommended</div>
+          <div class="pc-name">🗓️ Monthly Access</div>
+          <div class="pc-price">9999rs <span>/month</span></div>
+          <div class="pc-desc">♾️ Full unlimited access for 30 days</div>
+          <ul class="pc-feats">
+            <li class="hi">Unlimited chats</li>
+            <li class="hi">Unlimited PDF uploads</li>
+            <li class="hi">All languages supported</li>
+            <li>Priority processing</li>
+            <li>3-day renewal reminder</li>
+            <li>WhatsApp support</li>
+          </ul>
+          <a class="btn-buy" href="https://razorpay.me/@afreen9836" target="_blank">Pay 9999rs via Razorpay</a>
+          <button class="btn-buy out" onclick="activateSubscription()" style="margin-top:12px;">? Already paid? Activate subscription</button>
+        </div>
+        <div class="pay-card">
+          <div class="pc-name">🧪 Free Trial</div>
+          <div class="pc-price">Rs 0 <span>/always</span></div>
+          <div class="pc-desc">🎁 Get started at no cost</div>
+          <ul class="pc-feats">
+            <li class="hi">5 free chats total</li>
+            <li class="hi">1 free PDF upload</li>
+            <li>Basic document search</li>
+            <li style="color:var(--danger)">Limits: 5 chats & 1 PDF only</li>
+          </ul>
+          <button class="btn-buy out" onclick="goTo('chat')">Continue with Free 🆓</button>
+        </div>
+      </div>
+      <div class="pay-note">
+        <strong>📲 How to activate after payment:</strong> Pay via Razorpay link above, then send your payment screenshot on WhatsApp. Your account will be upgraded within 2 hours.<br><br>
+        <strong>🔗 Payment link:</strong> <a href="https://razorpay.me/@afreen9836" target="_blank">razorpay.me/@afreen9836</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- -- FEEDBACK -- -->
+  <div class="screen" id="sc-feedback">
+    <div class="fb-wrap">
+      <div class="fb-hdr">
+        <h1>💬 Feedback & Support</h1>
+        <p>Your feedback helps us improve Fuzragion for everyone</p>
+      </div>
+      <div class="fb-tabs">
+        <button class="fbtab active" onclick="fbtab(this,'review')">⭐ Leave Feedback</button>
+        <button class="fbtab" onclick="fbtab(this,'report')">🐞 Report Problem</button>
+      </div>
+
+      <!-- Feedback form -->
+      <div id="fb-review">
+        <div class="fb-form">
+          <h2>⭐ How was your experience?</h2>
+          <div style="font-size:12px;color:var(--muted2);margin-bottom:10px;">⭐ Rate your experience</div>
+          <div class="rating-stars" id="stars-rating">
+            <span class="star" onclick="setRating(1)" data-v="1">⭐</span>
+            <span class="star" onclick="setRating(2)" data-v="2">⭐</span>
+            <span class="star" onclick="setRating(3)" data-v="3">⭐</span>
+            <span class="star" onclick="setRating(4)" data-v="4">⭐</span>
+            <span class="star" onclick="setRating(5)" data-v="5">⭐</span>
+          </div>
+          <textarea class="fb-ta" id="fb-text" placeholder="Tell us what you think • what worked well, what could be better..."></textarea>
+          <button class="btn-submit" onclick="submitFeedback()">Send Feedback</button>
+        </div>
+        <div class="fb-success" id="fb-success">
+          <div class="fb-success-icon">?</div>
+          <h3>Thank you for your feedback!</h3>
+          <p>We've received your feedback and will use it to improve Fuzragion.</p>
+        </div>
+      </div>
+
+      <!-- Report form -->
+      <div id="fb-report" style="display:none">
+        <div class="fb-form">
+          <h2>Report a Problem</h2>
+          <select class="fb-select" id="report-type">
+            <option value="">Select problem type...</option>
+            <option value="answer-wrong">Wrong or inaccurate answer</option>
+            <option value="upload-fail">Document upload failed</option>
+            <option value="slow">System is slow</option>
+            <option value="login">Login / signup issue</option>
+            <option value="payment">Payment issue</option>
+            <option value="other">Other</option>
+          </select>
+          <textarea class="fb-ta" id="report-text" placeholder="Describe the problem in detail • what happened, what you expected..."></textarea>
+          <button class="btn-submit" onclick="submitReport()">Send Report 🐞</button>
+        </div>
+        <div class="fb-success" id="report-success">
+          <div class="fb-success-icon">OK</div>
+          <h3>Problem reported!</h3>
+          <p>We've received your report and will look into it. Thank you for helping us improve.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- -- DASHBOARD -- -->
+  <div class="screen" id="sc-dash">
+    <div class="dash-wrap">
+      <div class="dash-hdr"><h1>📈 Your Analytics</h1></div>
+      <div class="dash-grid">
+        <div class="dcard"><div class="dc-num" id="stat-chats">0</div><div class="dc-lbl">Total Queries</div></div>
+        <div class="dcard"><div class="dc-num" id="stat-docs">0</div><div class="dc-lbl">Documents Uploaded</div></div>
+        <div class="dcard"><div class="dc-num" id="stat-saved">0</div><div class="dc-lbl">Saved Answers</div></div>
+        <div class="dcard"><div class="dc-num" id="stat-time">0h</div><div class="dc-lbl">Time Saved</div></div>
+      </div>
+      <div class="dash-section"><h3>🕘 Recent Queries</h3><div id="recent-queries" class="query-list"><div style="text-align:center;color:var(--muted2);padding:20px">📭 No queries yet</div></div></div>
+      <div class="dash-section"><h3>🔥 Most Asked Topics</h3><div id="top-topics" class="topic-list"><div style="text-align:center;color:var(--muted2);padding:20px">📭 No data yet</div></div></div>
+    </div>
+  </div>
+
+  </div> <!-- end screens -->
+
+  <!-- FOOTER -->
+  <footer style="text-align:center;padding:20px;color:var(--muted2);font-size:12px;border-top:1px solid var(--border);background:var(--black);">
+    Built with care by Fuzail • Turning documents into decisions with Fuzragion.
+  </footer>
+</div>
+
+<script>
+const PROD_API = "https://rag-ai-g9s1.onrender.com";
+const LOCAL_API = ["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ? "http://127.0.0.1:8001"
+  : `${window.location.protocol}//${window.location.hostname}:8001`;
+const API = window.location.hostname.includes("onrender.com") ? PROD_API : LOCAL_API;
+let ACTIVE_API = API;
+const ORIGIN_API = API;
+function getApiCandidates(){
+  return [
+    ACTIVE_API,
+    ORIGIN_API,
+  ].map(v => (v||'').trim().replace(/\/+$/, '')).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
+}
+
+function setAPIBase(next){
+  ACTIVE_API = (next || '').trim().replace(/\/+$/, '');
+  if(ACTIVE_API){
+    localStorage.setItem('cv_api_base', ACTIVE_API);
+  }
+}
+
+function connectionHelp(){
+  const web = window.location.protocol === "file:"
+    ? `${LOCAL_API}/app`
+    : `${window.location.origin}/app`;
+  const api = (ACTIVE_API || API || '').replace(/\/+$/, '');
+  return `Cannot connect to server. Make sure backend is running, then open the same base URL on laptop/mobile.\nWeb: ${web}\nAPI: ${api}`;
+}
+
+async function withAPIFallback(path, options){
+  const timeoutMs = 12000;
+  const baseOpts = {...(options||{})};
+  let lastErr;
+  for(const base of getApiCandidates()){
+    const controller = new AbortController();
+    const timer = setTimeout(()=>controller.abort(), timeoutMs);
+    try{
+      const resp = await fetch(`${base}${path}`, {...baseOpts, signal: controller.signal});
+      const ct=(resp.headers.get('content-type')||'').toLowerCase();
+      const looksWrongHost = (!resp.ok && (resp.status===404 || ct.includes('text/html')));
+      if(looksWrongHost){
+        continue;
+      }
+      setAPIBase(base);
+      return resp;
+    }catch(err){
+      lastErr = err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastErr || new Error('API unreachable');
+}
+
+async function parseJsonSafe(response){
+  try{
+    return await response.json();
+  }catch{
+    return null;
+  }
+}
+const MAX_FREE = 5;
+const MAX_FREE_PDF = 1;
+const FEEDBACK_EMAIL = "fuzailshaik42@gmail.com";
+const IS_MOBILE = window.matchMedia('(max-width: 900px)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+const THEME_KEY = 'cv_theme';
+const THEMES = ['purple','green','red','orange'];
+let currentTheme = 'purple';
+
+// Stars
+const cv=document.getElementById('stars'),cx=cv.getContext('2d');
+let stars=[];
+function rsz(){cv.width=innerWidth;cv.height=innerHeight;}
+function mkS(){stars=[];const count=IS_MOBILE?40:150;for(let i=0;i<count;i++)stars.push({x:Math.random()*cv.width,y:Math.random()*cv.height,r:Math.random()*1.2,t:Math.random()*Math.PI*2,s:Math.random()*0.004+0.002});}
+function drS(){cx.clearRect(0,0,cv.width,cv.height);stars.forEach(s=>{s.t+=s.s;const a=0.2+0.8*Math.abs(Math.sin(s.t));cx.beginPath();cx.arc(s.x,s.y,s.r,0,Math.PI*2);cx.fillStyle=`rgba(150,130,255,${a})`;cx.fill();});requestAnimationFrame(drS);}
+rsz();mkS();drS();window.addEventListener('resize',()=>{rsz();mkS();});
+
+// -- Three.js Particle Background (Olive Supernova) --
+(async()=>{
+if(IS_MOBILE)return;
+const THREE=await import('three');
+const{OrbitControls}=await import('three/addons/controls/OrbitControls.js');
+const{EffectComposer}=await import('three/addons/postprocessing/EffectComposer.js');
+const{RenderPass}=await import('three/addons/postprocessing/RenderPass.js');
+const{UnrealBloomPass}=await import('three/addons/postprocessing/UnrealBloomPass.js');
+const COUNT=20000,SPEED_MULT=1;
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x000000,0.01);
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,2000);
+camera.position.set(0,0,100);
+const bgC=document.getElementById('bg-canvas');
+const renderer=new THREE.WebGLRenderer({canvas:bgC,antialias:true,powerPreference:"high-performance"});
+renderer.setSize(innerWidth,innerHeight);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.autoRotate=true;controls.autoRotateSpeed=2.0;
+const composer=new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,camera));
+const bloomPass=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),1.5,0.4,0.85);
+bloomPass.strength=1.8;bloomPass.radius=0.4;bloomPass.threshold=0;
+composer.addPass(bloomPass);
+const dummy=new THREE.Object3D(),color=new THREE.Color(),target=new THREE.Vector3();
+const geometry=new THREE.TetrahedronGeometry(0.25);
+const material=new THREE.MeshBasicMaterial({color:0xffffff});
+const instancedMesh=new THREE.InstancedMesh(geometry,material,COUNT);
+instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(instancedMesh);
+const positions=[];
+for(let i=0;i<COUNT;i++){
+positions.push(new THREE.Vector3((Math.random()-0.5)*100,(Math.random()-0.5)*100,(Math.random()-0.5)*100));
+instancedMesh.setColorAt(i,color.setHex(0x00ff88));
+}
+const clock=new THREE.Clock();
+function animate(){
+requestAnimationFrame(animate);
+const time=clock.getElapsedTime()*SPEED_MULT;
+controls.update();
+for(let i=0;i<COUNT;i++){
+const n=i/COUNT,isCore=n<0.03?1.0:0.0,isOuter=1.0-isCore;
+const phi=Math.acos(1.0-2.0*n),theta=Math.PI*2.0*i*1.61803398875;
+const dirX=Math.sin(phi)*Math.cos(theta),dirY=Math.sin(phi)*Math.sin(theta),dirZ=Math.cos(phi)*1.96;
+const pSpeed=((i%100)/100.0*2.0+0.5)*1.09,maxDist=60.0,timeOffset=(i*73.19)%maxDist;
+let distOut=((time*pSpeed+timeOffset)%maxDist)*isOuter;
+distOut=Math.pow(distOut,1.15);
+const expansionRatio=distOut/Math.pow(maxDist,1.15);
+const corePulse=Math.sin(time*20.0+i*0.5)*0.15,coreRadius=0.1*(0.6+corePulse);
+const lobe1=Math.sin(phi*3.0-time*1.5)*Math.cos(theta*2.0);
+const lobe2=Math.cos(phi*2.0+time*1.2)*Math.sin(theta*4.0-time);
+const lobe3=Math.sin(phi*5.0+theta*3.0+time)*0.5;
+const turbulence=(lobe1+lobe2+lobe3)*10*expansionRatio;
+const radius=coreRadius*isCore+(coreRadius+distOut+turbulence)*isOuter;
+target.set(dirX*radius,dirY*radius,dirZ*radius);
+const coreHue=0.6+(i%10)*0.01,coreLight=0.8+corePulse;
+const elementMap=i%3,baseOuterHue=0.17*elementMap*elementMap-0.09*elementMap;
+const outerHue=baseOuterHue-expansionRatio*0.1,outerLight=0.7-expansionRatio*0.65,outerSat=0.8+0.2*Math.sin(expansionRatio*Math.PI);
+const finalHue=coreHue*isCore+outerHue*isOuter,finalLight=coreLight*isCore+outerLight*isOuter,finalSat=1.0*isCore+outerSat*isOuter;
+color.setHSL((finalHue%1.0+1.0)%1.0,Math.max(0.0,Math.min(1.0,finalSat)),Math.max(0.01,Math.min(1.0,finalLight)));
+positions[i].lerp(target,0.1);
+dummy.position.copy(positions[i]);dummy.updateMatrix();
+instancedMesh.setMatrixAt(i,dummy.matrix);
+instancedMesh.setColorAt(i,color);
+}
+instancedMesh.instanceMatrix.needsUpdate=true;
+instancedMesh.instanceColor.needsUpdate=true;
+composer.render();
+}
+animate();
+window.addEventListener('resize',()=>{
+camera.aspect=innerWidth/innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(innerWidth,innerHeight);
+composer.setSize(innerWidth,innerHeight);
+});
+})();
+;document.onreadystatechange=null;
+
+// -- State --
+let token=localStorage.getItem('cv_tok');
+let user=JSON.parse(localStorage.getItem('cv_usr')||'null');
+let chatCount=0;
+let pdfCount=0;
+let activeDoc=null;
+let premiumActive=false;
+let subscriptionExpiry=null;
+
+// Chat history stored in localStorage
+let chatHistories=[];
+let currentChatId=null;
+let currentMsgs=[];
+let savedAnswers=[];
+let queryHistory=[];
+let currentMode='normal';
+let speechRec=null;
+let voiceSupported=false;
+let voiceActive=false;
+
+function scopedKey(base){
+  const uid=user?.id||'guest';
+  return `${base}_${uid}`;
+}
+
+async function loadUserScopedState(){
+  chatHistories=JSON.parse(localStorage.getItem(scopedKey('cv_histories'))||'[]');
+  currentChatId=localStorage.getItem(scopedKey('cv_current_chat'));
+  savedAnswers=JSON.parse(localStorage.getItem(scopedKey('cv_saved'))||'[]');
+  queryHistory=JSON.parse(localStorage.getItem(scopedKey('cv_queries'))||'[]');
+  pdfCount=parseInt(localStorage.getItem(scopedKey('cv_pdf_count'))||'0');
+  
+  // Load from backend
+  try{
+    const r=await fetch(`${ACTIVE_API}/chat/history`,{headers:ah()});
+    if(r.ok){
+      const d=await r.json();
+      // Merge with local
+      const backendHistories=d.histories||[];
+      for(const bh of backendHistories){
+        const existing=chatHistories.find(h=>h.id===bh.id);
+        if(!existing){
+          chatHistories.push({id:bh.id,title:bh.title,date:new Date(bh.date).toLocaleDateString(),msgs:bh.msgs});
+        }
+      }
+      chatHistories.sort((a,b)=>new Date(b.date)-new Date(a.date));
+      localStorage.setItem(scopedKey('cv_histories'),JSON.stringify(chatHistories));
+    }
+  }catch(e){console.warn('Failed to load chat history from backend:',e);}
+}
+
+function persistUserScopedState(){
+  localStorage.setItem(scopedKey('cv_histories'),JSON.stringify(chatHistories));
+  localStorage.setItem(scopedKey('cv_current_chat'),currentChatId||'');
+  localStorage.setItem(scopedKey('cv_saved'),JSON.stringify(savedAnswers));
+  localStorage.setItem(scopedKey('cv_queries'),JSON.stringify(queryHistory));
+  localStorage.setItem(scopedKey('cv_pdf_count'),pdfCount.toString());
+}
+
+window.onload=async()=>{
+  initTheme();
+  initSpeechRecognition();
+  restoreChatState();
+  if(token&&user){
+    await refreshUser();
+    enterApp();
+  }
+  checkAPI();
+};
+
+function setThemeVars(p,m,l,g){
+  const root=document.documentElement;
+  root.style.setProperty('--purple',p);
+  root.style.setProperty('--purple-mid',m);
+  root.style.setProperty('--purple-light',l);
+  root.style.setProperty('--purple-glow',g);
+}
+
+function applyTheme(name){
+  if(name==='green') setThemeVars('#1b9c68','#34d399','#6ee7b7','#a7f3d0');
+  else if(name==='red') setThemeVars('#c24141','#ef4444','#f87171','#fca5a5');
+  else if(name==='orange') setThemeVars('#d97706','#f59e0b','#fbbf24','#fde68a');
+  else setThemeVars('#6c3dd6','#8b5cf6','#a78bfa','#c4b5fd');
+  currentTheme = name;
+  localStorage.setItem(THEME_KEY,currentTheme);
+}
+
+function cycleTheme(){
+  const idx = THEMES.indexOf(currentTheme);
+  const next = THEMES[(idx + 1) % THEMES.length];
+  applyTheme(next);
+}
+
+function initTheme(){
+  const saved = localStorage.getItem(THEME_KEY)||'purple';
+  applyTheme(THEMES.includes(saved)?saved:'purple');
+}
+
+function initSpeechRecognition(){
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const btn=document.getElementById('voice-btn');
+  if(!SpeechRecognition){voiceSupported=false; if(btn)btn.disabled=true; return;}
+  voiceSupported=true;
+  speechRec=new SpeechRecognition();
+  speechRec.lang=navigator.language||'en-US';
+  speechRec.interimResults=true;
+  speechRec.continuous=false;
+  speechRec.onstart=()=>{voiceActive=true;updateVoiceButton();toast('Listening... speak now','success');};
+  speechRec.onend=()=>{voiceActive=false;updateVoiceButton();};
+  speechRec.onerror=()=>{voiceActive=false;updateVoiceButton();toast('Voice recognition error','warning');};
+  speechRec.onresult=(event)=>{
+    const transcript=Array.from(event.results).map(r=>r[0].transcript).join('');
+    const inp=document.getElementById('chat-input');
+    if(inp)inp.value=transcript;
+    if(event.results[event.results.length-1].isFinal){voiceActive=false;updateVoiceButton();}
+  };
+  if(btn)btn.disabled=false;
+}
+
+function toggleVoice(){
+  if(!voiceSupported){toast('Voice input not supported in this browser','warning');return;}
+  if(!speechRec)return;
+  if(voiceActive){speechRec.stop();}
+  else{speechRec.start();}
+}
+
+function updateVoiceButton(){
+  const btn=document.getElementById('voice-btn');
+  if(!btn)return;
+  if(voiceActive){btn.title='Stop voice input';btn.classList.add('listening');}
+  else{btn.title=voiceSupported?'Tap to speak':'Voice input unavailable';btn.classList.remove('listening');}
+}
+
+async function checkAPI(){
+  for(const base of getApiCandidates()){
+    try{
+      const r=await fetch(`${base}/health`);
+      if(r.ok){
+        setAPIBase(base);
+        setAPI(true);
+        return;
+      }
+    }catch{}
+  }
+  setAPI(false);
+}
+function setAPI(ok){
+  const d=document.getElementById('api-dot');
+  const l=document.getElementById('api-lbl');
+  if(d&&l){d.className='api-dot'+(ok?'':' off');l.textContent=ok?'Connected':'Offline';}
+}
+
+// Auth
+function atab(btn,tab){
+  document.querySelectorAll('.atab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('f-login').style.display=tab==='login'?'block':'none';
+  document.getElementById('f-signup').style.display=tab==='signup'?'block':'none';
+}
+
+async function doLogin(){
+  const e=document.getElementById('le').value.trim();
+  const p=document.getElementById('lp').value;
+  const err=document.getElementById('lerr');
+  err.style.display='none';
+  if(!e||!p){showErr(err,'Please fill all fields');return;}
+  const btn=document.querySelector('#f-login .btn-auth');
+  if(btn)btn.disabled=true;
+  try{
+    const r=await withAPIFallback('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,password:p})});
+    const d=await parseJsonSafe(r);
+    if(r.ok){saveUser(d);enterApp();}
+    else showErr(err,d?.detail||`Login failed (HTTP ${r.status})`);
+  }catch{showErr(err, connectionHelp());}
+  finally{ if(btn)btn.disabled=false; }
+}
+
+async function doSignup(){
+  const n=document.getElementById('sn').value.trim();
+  const e=document.getElementById('se').value.trim();
+  const ph=document.getElementById('sph').value.trim();
+  const p=document.getElementById('sp').value;
+  const err=document.getElementById('serr');
+  err.style.display='none';
+  if(!n||!e||!ph||!p){showErr(err,'Please fill all fields');return;}
+  if(!/^\+?[0-9]{10,15}$/.test(ph)){showErr(err,'Enter valid phone number (10-15 digits)');return;}
+  if(p.length<6){showErr(err,'Password must be at least 6 characters');return;}
+  const btn=document.querySelector('#f-signup .btn-auth');
+  if(btn)btn.disabled=true;
+  try{
+    const r=await withAPIFallback('/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,email:e,phone_number:ph,password:p})});
+    const d=await parseJsonSafe(r);
+    if(r.ok){saveUser(d);enterApp();toast('? Account created! Welcome to Fuzragion','success');}
+    else showErr(err,d?.detail||`Signup failed (HTTP ${r.status})`);
+  }catch{showErr(err, connectionHelp());}
+  finally{ if(btn)btn.disabled=false; }
+}
+
+function saveUser(d){
+  token=d.access_token;
+  user=d.user;
+  localStorage.setItem('cv_tok',token);
+  localStorage.setItem('cv_usr',JSON.stringify(user));
+  loadUserScopedState();
+  updateSubscriptionState();
+}
+function showErr(el,msg){el.textContent=msg;el.style.display='block';}
+
+async function refreshUser(){
+  if(!token) return;
+  try{
+    const r=await fetch(`${ACTIVE_API}/auth/me`,{headers:ah()});
+    const d=await r.json();
+    if(r.ok){
+      user=d;
+      localStorage.setItem('cv_usr',JSON.stringify(user));
+      await loadUserScopedState();
+      updateSubscriptionState();
+    } else {
+      logout();
+    }
+  }catch{
+    logout();
+  }
+}
+
+function updateSubscriptionState(){
+  chatCount=Number(user?.chat_count||0);
+  if(user?.subscription_plan==='pro' && user?.subscription_expiry){
+    subscriptionExpiry=new Date(user.subscription_expiry);
+    premiumActive=subscriptionExpiry>new Date();
+  } else {
+    subscriptionExpiry=null;
+    premiumActive=false;
+  }
+  const payTab=document.getElementById('tab-pay');
+  if(payTab)payTab.style.display='inline-block';
+}
+
+function enterApp(){
+  updateSubscriptionState();
+  document.getElementById('main-nav').style.display='flex';
+  document.getElementById('nav-email').textContent=user?.email||'';
+  const payTab=document.getElementById('tab-pay');
+  if(payTab)payTab.style.display='inline-block';
+  goTo('chat');
+}
+
+function logout(){
+  localStorage.removeItem('cv_tok');localStorage.removeItem('cv_usr');
+  token=null;user=null;
+  chatCount=0;
+  premiumActive=false;
+  chatHistories=[];currentChatId=null;currentMsgs=[];savedAnswers=[];queryHistory=[];
+  document.getElementById('main-nav').style.display='none';
+  showSc('auth');
+}
+
+function setMode(m){
+  currentMode=m;
+  const modes={normal:'Study Mode',business:'Business Mode',legal:'Legal Mode',research:'Research Mode'};
+  toast(`Switched to ${modes[m]}`,'success');
+}
+
+// Navigation
+function goTo(p){
+  showSc(p);
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  const tab=document.getElementById('tab-'+p);
+  if(tab)tab.classList.add('active');
+  if(p==='chat'){
+    restoreChatState();
+    loadDocChips();
+    renderHistory();
+    updatePlan();
+    if(currentChatId && chatHistories.some(h=>h.id===currentChatId)) loadChat(currentChatId);
+    else newChat();
+  }
+  if(p==='docs')loadDocs();
+  if(p==='dash')updateDashboard();
+  if(p==='pay'){updatePlan();}
+}
+
+function hasPremium(){
+  return premiumActive;
+}
+
+function formatExpiry(date){
+  if(!date) return 'Expired';
+  return date.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
+}
+
+function updatePlan(){
+  const curPlan=document.getElementById('cur-plan');
+  const curStatus=document.getElementById('cur-status');
+  const planLbl=document.getElementById('plan-lbl');
+  const planCnt=document.getElementById('plan-cnt');
+  const planFill=document.getElementById('plan-fill');
+  const chatsLeft=document.getElementById('chats-left');
+  const limitBar=document.getElementById('limit-bar');
+  if(hasPremium()){
+    if(curPlan)curPlan.textContent='Pro • Unlimited Access';
+    if(curStatus)curStatus.textContent=`Active until ${formatExpiry(subscriptionExpiry)}`;
+    if(planLbl)planLbl.textContent='Pro Plan';
+    if(planCnt)planCnt.textContent='Unlimited';
+    if(planFill)planFill.style.width='100%';
+    if(chatsLeft)chatsLeft.textContent='Unlimited';
+    if(limitBar){
+      limitBar.style.borderColor='var(--success)';
+      limitBar.innerHTML='✅ Pro plan active • enjoy unlimited AI access';
+    }
+  } else {
+    const left=MAX_FREE-chatCount;
+    const pdfLeft=MAX_FREE_PDF-pdfCount;
+    if(curPlan)curPlan.textContent=(chatCount>=MAX_FREE || pdfCount>=MAX_FREE_PDF)?'⚠️ Free • Limit Reached':'🆓 Free • 5 chats, 1 PDF';
+    if(curStatus)curStatus.textContent=`💬 ${left} chats, 📄 ${pdfLeft} PDF remaining`;
+    if(planLbl)planLbl.textContent=(chatCount>=MAX_FREE || pdfCount>=MAX_FREE_PDF)?'⚠️ Limit Reached':'🆓 Free Plan';
+    if(planCnt)planCnt.textContent=`💬 ${chatCount} / ${MAX_FREE} chats used • 📄 ${pdfCount} / ${MAX_FREE_PDF} PDF uploaded`;
+    if(planFill)planFill.style.width=`${Math.min(((chatCount/MAX_FREE + pdfCount/MAX_FREE_PDF)/2)*100,100)}%`;
+    if(chatsLeft)chatsLeft.textContent=`${left} chat${left!==1?'s':''} remaining`;
+    if(limitBar){
+      limitBar.style.borderColor=(chatCount>=MAX_FREE || pdfCount>=MAX_FREE_PDF)?'var(--danger)':'';
+      limitBar.innerHTML=`Free Plan - <strong id="chats-left">${left} chat${left!==1?'s':''} remaining</strong>`;
+    }
+  }
+}
+
+async function activateSubscription(){
+  try{
+    const btn=document.querySelector('.btn-buy.out');
+    if(btn)btn.disabled=true;
+    const paymentRef=prompt('Enter payment reference/UTR ID');
+    if(!paymentRef){toast('Payment reference required','warning');return;}
+    const activationToken=prompt('Enter activation token provided by admin');
+    if(!activationToken){toast('Activation token required','warning');return;}
+    const r=await fetch(`${ACTIVE_API}/auth/activate-subscription`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json',...ah()},
+      body:JSON.stringify({amount_inr:9999,payment_reference:paymentRef,activation_token:activationToken}),
+    });
+    const d=await r.json();
+    if(r.ok){
+      user.subscription_expiry=d.subscription_expiry;
+      localStorage.setItem('cv_usr',JSON.stringify(user));
+      updateSubscriptionState();
+      updatePlan();
+      toast('? Subscription activated successfully','success');
+    } else {
+      toast(`? ${d.detail||'Activation failed'}`,'error');
+    }
+  }catch{
+    toast('? Cannot verify activation. Check your network or try again.','error');
+  } finally{
+    const btn=document.querySelector('.btn-buy.out');
+    if(btn)btn.disabled=false;
+  }
+}
+
+function showSc(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sc-'+id).classList.add('active');
+}
+
+// Chat history
+function newChat(){
+  currentChatId=Date.now().toString();
+  localStorage.setItem(scopedKey('cv_current_chat'), currentChatId);
+  currentMsgs=[];
+  document.getElementById('chat-msgs').innerHTML='';
+  document.getElementById('chat-msgs').appendChild(createWelcome());
+  document.getElementById('chat-title').textContent='New Chat';
+  renderHistory();
+}
+
+function createWelcome(){
+  const d=document.createElement('div');
+  d.className='chat-welcome';d.id='chat-welcome';
+  d.innerHTML=`<div class="wlc-icon">🤖</div><div class="wlc-title">Ask me anything</div><div class="wlc-sub">Upload documents in the Documents tab, then ask questions here. I support English, Urdu, Hindi, and more.</div><div class="wlc-tips"><div class="tip" onclick="useTip(this)"><strong>📝 Summarize</strong>What is the main topic of this document?</div><div class="tip" onclick="useTip(this)"><strong>🔑 Key Points</strong>What are the key points mentioned?</div><div class="tip" onclick="useTip(this)"><strong>⚖️ Compare</strong>What differences exist between sections?</div><div class="tip" onclick="useTip(this)"><strong>🔎 Find Info</strong>What does the document say about...</div></div>`;
+  return d;
+}
+
+function saveCurrentChat(title){
+  if(!currentChatId)return;
+  localStorage.setItem(scopedKey('cv_current_chat'), currentChatId);
+  const idx=chatHistories.findIndex(h=>h.id===currentChatId);
+  const item={id:currentChatId,title:title||'Untitled Chat',date:new Date().toLocaleDateString(),msgs:currentMsgs};
+  if(idx>=0)chatHistories[idx]=item;
+  else chatHistories.unshift(item);
+  if(chatHistories.length>20)chatHistories=chatHistories.slice(0,20);
+  localStorage.setItem(scopedKey('cv_histories'),JSON.stringify(chatHistories));
+  // Save to backend
+  saveChatToBackend(currentChatId, title||'Untitled Chat', currentMsgs);
+}
+
+async function saveChatToBackend(chatId, title, msgs){
+  try{
+    const r=await fetch(`${ACTIVE_API}/chat/save`,{method:'POST',headers:{'Content-Type':'application/json',...ah()},body:JSON.stringify({chat_id:chatId,title,messages:msgs})});
+    if(!r.ok)console.warn('Failed to save chat to backend');
+  }catch(e){console.warn('Error saving chat:',e);}
+}
+
+function renderHistory(){
+  const el=document.getElementById('hist-list');
+  if(!chatHistories.length){el.innerHTML='<div style="font-size:11px;color:var(--muted);padding:8px 10px">No chats yet</div>';return;}
+  el.innerHTML=chatHistories.map(h=>`
+    <div class="hist-item ${h.id===currentChatId?'active':''}" onclick="loadChat('${h.id}')">
+      <div class="hi-title">${h.title}</div>
+      <div class="hi-date">${h.date}</div>
+      <button onclick="event.stopPropagation(); deleteChat('${h.id}')" style="position:absolute;right:8px;top:8px;padding:2px 6px;font-size:10px;border:1px solid var(--danger);border-radius:4px;background:transparent;color:var(--danger);cursor:pointer;">🗑️</button>
+    </div>
+  `).join('');
+}
+
+async function deleteChat(chatId){
+  if(!confirm('Delete this chat?'))return;
+  try{
+    const r=await fetch(`${ACTIVE_API}/chat/${chatId}`,{method:'DELETE',headers:ah()});
+    if(r.ok){
+      chatHistories=chatHistories.filter(h=>h.id!==chatId);
+      localStorage.setItem(scopedKey('cv_histories'),JSON.stringify(chatHistories));
+      if(currentChatId===chatId){
+        newChat();
+      }else{
+        renderHistory();
+      }
+      toast('Chat deleted','warning');
+    }else{
+      toast('Failed to delete chat','error');
+    }
+  }catch(e){
+    toast('Error deleting chat','error');
+  }
+}
+
+function loadChat(id){
+  const h=chatHistories.find(x=>x.id===id);
+  if(!h)return;
+  currentChatId=id;
+  localStorage.setItem(scopedKey('cv_current_chat'), currentChatId);
+  currentMsgs=h.msgs||[];
+  document.getElementById('chat-title').textContent=h.title;
+  const c=document.getElementById('chat-msgs');
+  c.innerHTML='';
+  currentMsgs.forEach(m=>renderMsg(m.text,m.type,m.sources));
+  c.scrollTop=c.scrollHeight;
+  renderHistory();
+}
+
+// Doc chips
+async function loadDocChips(){
+  try{
+    const r=await fetch(`${ACTIVE_API}/files`,{headers:ah()});
+    const d=await r.json();
+    const files=d.files||[];
+    const el=document.getElementById('doc-chips');
+    el.innerHTML=`<div class="doc-chip ${activeDoc===null?'active':''}" onclick="setDoc(null,this)"><div class="dc-dot all"></div><span class="dc-name">All Documents</span></div>`
+      +files.map(f=>`<div class="doc-chip ${activeDoc===f?'active':''}" onclick="setDoc('${f}',this)"><div class="dc-dot"></div><span class="dc-name">${f}</span></div>`).join('');
+    updatePlan();checkAPI();
+  }catch{}
+}
+
+function setDoc(name,el){
+  activeDoc=name;
+  document.querySelectorAll('.doc-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('filter-lbl').textContent=name||'All Documents';
+}
+
+function toggleScreen(){
+  const sc=document.getElementById('sc-chat');
+  const expanded=!sc.classList.contains('expanded');
+  sc.classList.toggle('expanded',expanded);
+  localStorage.setItem('cv_chat_expanded',expanded?'true':'false');
+  const btn=document.getElementById('expand-btn');
+  if(btn)btn.textContent=expanded?'Normal':'Expand';
+}
+
+function restoreChatState(){
+  const sc=document.getElementById('sc-chat');
+  const expanded=localStorage.getItem('cv_chat_expanded')==='true';
+  if(sc)sc.classList.toggle('expanded',expanded);
+  const btn=document.getElementById('expand-btn');
+  if(btn)btn.textContent=expanded?'Normal':'Expand';
+}
+
+function updateDashboard(){
+  const totalQueries=queryHistory.length;
+  const totalDocs=chatHistories.reduce((acc,h)=>acc+(h.msgs?.length||0),0);
+  const totalSaved=savedAnswers.length;
+  document.getElementById('stat-chats').textContent=totalQueries;
+  document.getElementById('stat-docs').textContent=totalDocs;
+  document.getElementById('stat-saved').textContent=totalSaved;
+  document.getElementById('stat-time').textContent=Math.round(totalQueries*0.5)+'h';
+  
+  const rq=document.getElementById('recent-queries');
+  if(queryHistory.length){
+    rq.innerHTML=queryHistory.slice(0,10).map((q,i)=>`<div class="qitem"><span>${(i+1)}.${q.q.substring(0,50)}...</span><span class="qdate">${q.date}</span></div>`).join('');
+  }
+  
+  const topics={};
+  queryHistory.forEach(q=>{const k=q.q.split(' ')[0];topics[k]=(topics[k]||0)+1;});
+  const tt=document.getElementById('top-topics');
+  if(Object.keys(topics).length){
+    tt.innerHTML=Object.entries(topics).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([t,c])=>`<div class="titem"><span>${t}</span><span style="background:var(--purple);padding:2px 8px;border-radius:10px;font-size:11px">${c}</span></div>`).join('');
+  }
+}
+
+// -- VOICE SYNTHESIS & RECOGNITION --
+function languageToLocale(langName='', text=''){
+  const l=(langName||'').toLowerCase();
+  const t=text||'';
+  if(/[?-?]/.test(t) || l.includes('urdu')) return 'ur-PK';
+  if(/[?-?]/.test(t) || l.includes('hindi')) return 'hi-IN';
+  if(/[?-?]/.test(t) || l.includes('bengali')) return 'bn-IN';
+  if(/[?-?]/.test(t) || l.includes('punjabi')) return 'pa-IN';
+  if(/[?-?]/.test(t) || l.includes('gujarati')) return 'gu-IN';
+  if(/[?-?]/.test(t) || l.includes('odia')) return 'or-IN';
+  if(/[?-?]/.test(t) || l.includes('tamil')) return 'ta-IN';
+  if(/[?-?]/.test(t) || l.includes('telugu')) return 'te-IN';
+  if(/[?-?]/.test(t) || l.includes('kannada')) return 'kn-IN';
+  if(/[?-?]/.test(t) || l.includes('malayalam')) return 'ml-IN';
+  if(l.includes('spanish')) return 'es-ES';
+  if(l.includes('french')) return 'fr-FR';
+  if(l.includes('german')) return 'de-DE';
+  if(l.includes('arabic')) return 'ar-SA';
+  return 'en-US';
+}
+
+function pickVoice(locale){
+  const voices=speechSynthesis.getVoices();
+  const exact=voices.find(v=>v.lang.toLowerCase()===locale.toLowerCase());
+  if(exact)return exact;
+  const base=locale.split('-')[0].toLowerCase();
+  return voices.find(v=>v.lang.toLowerCase().startsWith(base)) || voices.find(v=>v.lang.includes('IN')) || null;
+}
+
+function speak(text, langName=''){
+  if(!('speechSynthesis' in window)){toast('Voice output not supported','warning');return;}
+  if(!text || !text.trim())return;
+  speechSynthesis.cancel();
+  const utterance=new SpeechSynthesisUtterance(text);
+  utterance.lang=languageToLocale(langName,text);
+  utterance.rate=1.0;
+  utterance.pitch=1.0;
+  const voiceNow=pickVoice(utterance.lang);
+  if(voiceNow)utterance.voice=voiceNow;
+  speechSynthesis.onvoiceschanged=()=>{const pref=pickVoice(utterance.lang);if(pref)utterance.voice=pref;};
+  speechSynthesis.speak(utterance);
+}
+
+// Send message
+function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}}
+function useTip(el){const t=el.querySelector('strong').nextSibling;if(t){document.getElementById('chat-input').value=t.textContent.trim();}document.getElementById('chat-input').focus();}
+
+async function sendMsg(){
+if(!premiumActive && chatCount>=MAX_FREE){showPaywall();return;}
+  const inp=document.getElementById('chat-input');
+  const txt=inp.value.trim();if(!txt)return;
+  
+  queryHistory.unshift({q:txt,file:activeDoc,mode:currentMode,date:new Date().toLocaleDateString()});
+  if(queryHistory.length>100)queryHistory.pop();
+  localStorage.setItem(scopedKey('cv_queries'),JSON.stringify(queryHistory));
+
+  const wlc=document.getElementById('chat-welcome');if(wlc)wlc.remove();
+  if(!currentChatId){currentChatId=Date.now().toString();}
+
+  renderMsg(txt,'user');
+  currentMsgs.push({text:txt,type:'user',sources:[]});
+  inp.value='';
+  document.getElementById('send-btn').disabled=true;
+  const typing=addTyping();
+
+  try{
+    const r=await fetch(`${ACTIVE_API}/ask`,{method:'POST',headers:{'Content-Type':'application/json',...ah()},body:JSON.stringify({query:txt,file_name:activeDoc,mode:currentMode})});
+    const d=await r.json();
+    typing.remove();
+    if(r.ok){
+      if(typeof d.subscription_active==='boolean'){
+        premiumActive=d.subscription_active;
+      }
+      if(typeof d.chats_used==='number'){
+        chatCount=d.chats_used;
+      }
+      if(!premiumActive && chatCount>=MAX_FREE){
+        updatePlan();
+        showPaywall();
+        return;
+      }
+      renderMsg(d.answer,'ai',d.sources,d.language||'');
+      currentMsgs.push({text:d.answer,type:'ai',sources:d.sources||[]});
+      if(!premiumActive){
+        chatCount = d.chats_remaining !== null ? MAX_FREE - d.chats_remaining : chatCount + 1;
+        updatePlan();
+      }
+      const title=txt.length>40?txt.substring(0,40)+'...':txt;
+      document.getElementById('chat-title').textContent=title;
+      saveCurrentChat(title);
+      renderHistory();
+      if(!premiumActive && d.chats_remaining === 0)setTimeout(showPaywall,800);
+      speak(d.answer,d.language||'');
+    }else if(r.status===403){
+      renderMsg(d.detail||'Free limit reached!','ai');
+      showPaywall();
+    }else{
+      renderMsg('Error: '+(d.detail||'Something went wrong'),'ai');
+    }
+  }catch{
+    typing.remove();
+    renderMsg('❌ Cannot connect to API. Make sure the API server is running.','ai');
+  }
+  document.getElementById('send-btn').disabled=false;
+}
+
+function renderMsg(txt,type,srcs=[],lang=''){
+  const c=document.getElementById('chat-msgs');
+  const d=document.createElement('div');
+  d.className=`msg ${type}`;
+  const sh=srcs?.length?`<div class="msrc">Sources: ${srcs.slice(0,2).join(' • ')}</div>`:'';
+  const spk=(type==='ai')?`<button class="speak-btn" onclick="speak(decodeURIComponent('${encodeURIComponent(txt)}'),'${(lang||'').replace(/'/g,"\\'")}');" style="margin-left:8px;padding:3px 6px;font-size:11px;border:none;background:var(--purple);color:white;border-radius:4px;cursor:pointer;" title="Read aloud">Read</button>`:'';
+  d.innerHTML=`<div class="mav">${type==='ai'?'AI':'You'}</div><div class="mbody">${txt.replace(/\n/g,'<br>')}${sh}${spk}</div>`;
+  c.appendChild(d);c.scrollTop=c.scrollHeight;return d;
+}
+
+function saveAnswer(txt){
+  const item={id:Date.now(),text:txt.substring(0,100)+'...',date:new Date().toLocaleDateString(),full:txt};
+  savedAnswers.unshift(item);
+  if(savedAnswers.length>50)savedAnswers.pop();
+  localStorage.setItem(scopedKey('cv_saved'),JSON.stringify(savedAnswers));
+  toast('? Answer saved to library','success');
+}
+
+function improveAnswer(type){
+  const inp=document.getElementById('chat-input');
+  const prompts={shorter:'Make the previous answer more concise',details:'Expand with more details',bullets:'Convert to bullet points',explain:'Explain like I\'m 5'};
+  inp.value=`${prompts[type]} (based on last answer)`;
+  inp.focus();
+  toast('Ready to improve answer','info');
+}
+
+function addTyping(){
+  const c=document.getElementById('chat-msgs');
+  const d=document.createElement('div');
+  d.className='msg ai';
+  d.innerHTML=`<div class="mav">AI</div><div class="mbody"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  c.appendChild(d);c.scrollTop=c.scrollHeight;return d;
+}
+
+// Documents
+async function loadDocs(){
+  try{
+    const r=await fetch(`${ACTIVE_API}/files`,{headers:ah()});
+    const d=await r.json();
+    const files=d.files||[];
+    const el=document.getElementById('doc-list');
+  if(!files.length){el.innerHTML='<div class="doc-empty">📭 No documents yet - upload your first file above</div>';return;}
+    el.innerHTML=files.map(f=>`
+      <div class="doc-row">
+        <div class="dr-icon">📄</div>
+        <div class="dr-info"><div class="dr-name">${f}</div><div class="dr-meta">? Indexed and ready</div></div>
+        <div class="dr-badge">? Ready</div>
+        <div class="dr-btns">
+          <button class="btn-cd" onclick="chatDoc('${f}')">Chat</button>
+          <button class="btn-dd" onclick="delDoc('${f}')">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  }catch{toast('? Cannot load files','error');}
+}
+
+async function uploadFiles(e){
+  if(!premiumActive && pdfCount >= MAX_FREE_PDF){
+    toast('Free plan me sirf 1 PDF upload kar sakte hain. Upgrade karke unlimited upload karein.','warning');
+    showPaywall();
+    e.target.value='';
+    return;
+  }
+  const files=e.target.files;if(!files.length)return;
+  const prog=document.getElementById('uz-prog');
+  const st=document.getElementById('uz-st');
+  const fill=document.getElementById('prog-fill');
+  prog.style.display='block';
+  for(let i=0;i<files.length;i++){
+    const f=files[i];st.textContent=`Uploading ${f.name}...`;fill.style.width='20%';
+    const fd=new FormData();fd.append('file',f);
+    try{
+      const r=await fetch(`${ACTIVE_API}/upload`,{method:'POST',headers:ah(),body:fd});
+      const d=await r.json();
+      fill.style.width=`${((i+1)/files.length)*100}%`;
+      if(r.ok){
+        toast(`? ${f.name} uploaded!`,'success');
+        if(!premiumActive){
+          pdfCount++;
+          persistUserScopedState();
+        }
+      }
+      else if(r.status===403){toast('PDF upload locked. Upgrade required.','warning');showPaywall();}
+      else toast(`? ${d.detail}`,'error');
+    }catch{toast('? Upload failed','error');}
+  }
+  setTimeout(()=>{prog.style.display='none';fill.style.width='0';},1500);
+  loadDocs();e.target.value='';
+}
+
+async function delDoc(name){
+  try{
+    const r=await fetch(`${ACTIVE_API}/delete/${encodeURIComponent(name)}`,{method:'DELETE',headers:ah()});
+    if(r.ok){toast(`${name} deleted`,'warning');loadDocs();}
+    else{const d=await r.json();toast(`? ${d.detail}`,'error');}
+  }catch{toast('? Delete failed','error');}
+}
+
+function chatDoc(name){activeDoc=name;goTo('chat');setTimeout(()=>loadDocChips(),200);}
+
+// Feedback
+function fbtab(btn,tab){
+  document.querySelectorAll('.fbtab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('fb-review').style.display=tab==='review'?'block':'none';
+  document.getElementById('fb-report').style.display=tab==='report'?'block':'none';
+}
+
+function setRating(val){
+  rating=0;
+  document.querySelectorAll('.star').forEach((s,i)=>{
+    s.classList.toggle('active',i<val);
+  });
+  rating=val;
+}
+
+async function submitFeedback(){
+  const txt=document.getElementById('fb-text').value.trim();
+  if(!rating){toast('Please select a rating','warning');return;}
+  if(!txt){toast('Please write your feedback','warning');return;}
+
+  const subject=`Fuzragion Feedback • ${rating} Stars`;
+  const body=`Rating: ${rating}/5 stars\n\nFeedback:\n${txt}\n\nFrom: ${user?.email||'Anonymous'}`;
+  window.location.href=`mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+  document.querySelector('#fb-review .fb-form').style.display='none';
+  document.getElementById('fb-success').style.display='block';
+  toast('Feedback sent!','success');
+}
+
+async function submitReport(){
+  const type=document.getElementById('report-type').value;
+  const txt=document.getElementById('report-text').value.trim();
+  if(!type){toast('Please select a problem type','warning');return;}
+  if(!txt){toast('Please describe the problem','warning');return;}
+
+  const subject=`Fuzragion Bug Report • ${type}`;
+  const body=`Problem Type: ${type}\n\nDescription:\n${txt}\n\nFrom: ${user?.email||'Anonymous'}`;
+  window.location.href=`mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+  document.querySelector('#fb-report .fb-form').style.display='none';
+  document.getElementById('report-success').style.display='block';
+  toast('Report sent!','success');
+}
+
+// Helpers
+function ah(){return token?{'Authorization':`Bearer ${token}`}:{};}
+function showPaywall(){
+  const desc = document.querySelector('#paywall .modal-desc');
+  if(chatCount >= MAX_FREE && pdfCount >= MAX_FREE_PDF){
+    desc.textContent = "You've used all 5 free chats and 1 free PDF upload. Pay 9999rs/month to unlock unlimited access.";
+  } else if(chatCount >= MAX_FREE){
+    desc.textContent = "You've used all 5 free chats. Pay 9999rs/month to unlock unlimited access.";
+  } else if(pdfCount >= MAX_FREE_PDF){
+    desc.textContent = "You've used your 1 free PDF upload. Pay 9999rs/month to unlock unlimited access.";
+  }
+  document.getElementById('paywall').classList.add('show');
+}
+function closePaywall(){document.getElementById('paywall').classList.remove('show');}
+function toast(msg,type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className=`toast ${type} show`;
+  setTimeout(()=>t.className='toast',3500);
+}
+</script>
+</body>
+</html>
+
+
+
