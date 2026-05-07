@@ -922,9 +922,9 @@ async function loadUserScopedState(){
   pdfCount=Number.parseInt(localStorage.getItem(scopedKey('cv_pdf_count'))||'0',10);
   if(!Number.isFinite(pdfCount)) pdfCount=0;
   
-  // Load from backend
+  // Load chat history from backend
   try{
-    const r=await fetch(`${ACTIVE_API}/chat/history`,{headers:ah()});
+    const r=await withAPIFallback('/chat/history',{headers:ah()});
     if(r.ok){
       const d=await r.json();
       // Merge with local
@@ -939,6 +939,7 @@ async function loadUserScopedState(){
       localStorage.setItem(scopedKey('cv_histories'),JSON.stringify(chatHistories));
     }
   }catch(e){console.warn('Failed to load chat history from backend:',e);}
+  await syncPdfCountFromBackend();
 }
 
 function persistUserScopedState(){
@@ -947,6 +948,20 @@ function persistUserScopedState(){
   localStorage.setItem(scopedKey('cv_saved'),JSON.stringify(savedAnswers));
   localStorage.setItem(scopedKey('cv_queries'),JSON.stringify(queryHistory));
   localStorage.setItem(scopedKey('cv_pdf_count'),pdfCount.toString());
+}
+
+async function syncPdfCountFromBackend(){
+  try{
+    const r=await withAPIFallback('/documents',{headers:ah()});
+    if(!r.ok) return;
+    const d=await r.json();
+    const docs=Array.isArray(d.documents) ? d.documents : [];
+    pdfCount = docs.length;
+    persistUserScopedState();
+    updatePlan();
+  }catch(e){
+    console.warn('Failed to sync pdf count from backend:',e);
+  }
 }
 
 window.onload=async()=>{
@@ -1093,7 +1108,7 @@ async function doLogin(){
     }
     const r=await withAPIFallback('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,password:p})});
     const d=await parseJsonSafe(r);
-    if(r.ok){saveUser(d);enterApp();}
+    if(r.ok){await saveUser(d);enterApp();}
     else showErr(err,d?.detail||`Login failed (HTTP ${r.status})`);
   }catch{showErr(err, connectionHelp());}
   finally{ if(btn)btn.disabled=false; }
@@ -1123,18 +1138,18 @@ async function doSignup(){
     }
     const r=await withAPIFallback('/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,email:e,phone_number:ph,password:p})});
     const d=await parseJsonSafe(r);
-    if(r.ok){saveUser(d);enterApp();toast('? Account created! Welcome to Fuzragion','success');}
+    if(r.ok){await saveUser(d);enterApp();toast('? Account created! Welcome to Fuzragion','success');}
     else showErr(err,d?.detail||`Signup failed (HTTP ${r.status})`);
   }catch{showErr(err, connectionHelp());}
   finally{ if(btn)btn.disabled=false; }
 }
 
-function saveUser(d){
+async function saveUser(d){
   token=d.access_token;
   user=d.user;
   sessionStorage.setItem('cv_tok',token);
   sessionStorage.setItem('cv_usr',JSON.stringify(user));
-  loadUserScopedState();
+  await loadUserScopedState();
   updateSubscriptionState();
 }
 function showErr(el,msg){el.textContent=msg;el.style.display='block';}
@@ -1142,7 +1157,7 @@ function showErr(el,msg){el.textContent=msg;el.style.display='block';}
 async function refreshUser(){
   if(!token) return;
   try{
-    const r=await fetch(`${ACTIVE_API}/auth/me`,{headers:ah()});
+    const r=await withAPIFallback('/auth/me',{headers:ah()});
     const d=await r.json();
     if(r.ok){
       user=d;
@@ -1404,7 +1419,7 @@ function jsArg(value){
 // Doc chips
 async function loadDocChips(){
   try{
-    const r=await fetch(`${ACTIVE_API}/files`,{headers:ah()});
+    const r=await withAPIFallback('/files',{headers:ah()});
     const d=await r.json();
     const files=(d.files||[]).map(normalizeFileName).filter(Boolean);
     availableDocs = files;
@@ -1632,6 +1647,9 @@ async function loadDocs(){
     }
     const d=await r.json();
     const docs=Array.isArray(d.documents) ? d.documents : [];
+    pdfCount = docs.length;
+    persistUserScopedState();
+    updatePlan();
     const el=document.getElementById('doc-list');
   if(!docs.length){el.innerHTML='<div class="doc-empty">📭 No documents yet - upload your first file above</div>';return;}
     el.innerHTML=docs.map(doc=>{
@@ -1660,6 +1678,7 @@ async function loadDocs(){
 }
 
 async function uploadFiles(e){
+  await syncPdfCountFromBackend();
   if(!premiumActive && pdfCount >= MAX_FREE_PDF){
     toast('Free plan me sirf 1 PDF upload kar sakte hain. Upgrade karke unlimited upload karein.','warning');
     showPaywall();
