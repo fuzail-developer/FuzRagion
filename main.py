@@ -30,6 +30,11 @@ DEFAULT_QDRANT_DIR = Path("/tmp/qdrant") if os.name != "nt" else (BASE_DIR / "qd
 QDRANT_DIR = Path(os.getenv("QDRANT_LOCAL_PATH", str(DEFAULT_QDRANT_DIR)))
 COLLECTION_NAME = "learning-rag"
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "local").strip().lower()
+DISABLE_FREE_LIMITS = os.getenv("DISABLE_FREE_LIMITS", "0").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
 PDFS_DIR.mkdir(exist_ok=True)
 QDRANT_DIR.mkdir(exist_ok=True)
@@ -499,6 +504,8 @@ async def upload(
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     is_premium = is_user_premium(current_user, now)
+    if DISABLE_FREE_LIMITS:
+        is_premium = True
 
     init_ai_components()  # Initialize AI components on first use
 
@@ -653,13 +660,13 @@ def _run_answer(req: AskRequest, current_user: User, db: Session):
         "💎 Activate 1 Month Premium now and continue instantly."
     )
 
-    if not subscription_active and chats_used >= MAX_FREE_CHATS:
+    if not subscription_active and not DISABLE_FREE_LIMITS and chats_used >= MAX_FREE_CHATS:
         raise HTTPException(
             status_code=403,
             detail=limit_reached_message,
         )
 
-    if not subscription_active:
+    if not subscription_active and not DISABLE_FREE_LIMITS:
         current_user.chat_count += 1
         db.commit()
         chats_used = int(current_user.chat_count or 0)
