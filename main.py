@@ -304,6 +304,19 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_reindex_documents():
     try:
+        auto_reindex = os.getenv("AUTO_REINDEX_ON_STARTUP", "").strip().lower()
+        if auto_reindex in {"1", "true", "yes"}:
+            init_ai_components()
+            sync_existing_documents_to_vectors()
+            print("Startup document sync complete. PDFs are indexed and ready.")
+            return
+
+        if is_hosted:
+            print(
+                "Startup fast mode enabled (hosted). AI components/indexing will initialize lazily on first request."
+            )
+            return
+
         init_ai_components()
         sync_existing_documents_to_vectors()
         print("Startup document sync complete. PDFs are indexed and ready.")
