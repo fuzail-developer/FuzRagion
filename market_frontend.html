@@ -224,6 +224,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 32px
 .btn-cd{padding:6px 11px;background:#6c3dd420;border:1px solid #6c3dd440;border-radius:6px;color:var(--purple-light);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;}
 .btn-cd:hover{background:#6c3dd440;}
 .btn-dd{padding:6px 10px;background:#e0525215;border:1px solid #e0525230;border-radius:6px;color:var(--danger);font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;}
+.btn-cd,.btn-dd{position:relative;z-index:2;pointer-events:auto;}
 .doc-empty{text-align:center;padding:36px;color:var(--muted2);font-size:13px;}
 
 /* -- INFO -- */
@@ -714,23 +715,35 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 32px
 </div>
 
 <script>
-const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "::1"];
-const IS_LOOPBACK = LOOPBACK_HOSTS.includes(window.location.hostname) || window.location.protocol === "file:";
+const HOSTNAME = (window.location.hostname || "").toLowerCase();
+const IS_IPV4_LOOPBACK = /^127(\.\d{1,3}){1,3}$/.test(HOSTNAME);
+const IS_LOOPBACK =
+  HOSTNAME === "localhost" ||
+  HOSTNAME === "::1" ||
+  IS_IPV4_LOOPBACK ||
+  window.location.protocol === "file:";
 const SAME_ORIGIN_API = window.location.protocol === "file:"
   ? "http://127.0.0.1:8001"
   : `${window.location.protocol}//${window.location.host}`;
 const LOCAL_API_8001 = "http://127.0.0.1:8001";
 const LOCAL_API_8002 = "http://127.0.0.1:8002";
-const LOCAL_API_FALLBACKS = IS_LOOPBACK ? [LOCAL_API_8002, LOCAL_API_8001] : [];
+const SAME_HOST_8001 = `${window.location.protocol}//${window.location.hostname}:8001`;
+const SAME_HOST_8002 = `${window.location.protocol}//${window.location.hostname}:8002`;
+const LOCAL_API_FALLBACKS = IS_LOOPBACK
+  ? [SAME_HOST_8002, SAME_HOST_8001, LOCAL_API_8002, LOCAL_API_8001]
+  : [];
 const API = SAME_ORIGIN_API;
-let ACTIVE_API = API;
+let ACTIVE_API = (localStorage.getItem('cv_api_base') || API || '').trim().replace(/\/+$/, '');
 const ORIGIN_API = SAME_ORIGIN_API;
 function getApiCandidates(){
   return [
+    window.location.protocol === "file:" ? "" : `${window.location.protocol}//${window.location.host}`,
     SAME_ORIGIN_API,
     ACTIVE_API,
     ORIGIN_API,
     ...LOCAL_API_FALLBACKS,
+    "http://localhost:8001",
+    "http://localhost:8002",
   ].map(v => (v||'').trim().replace(/\/+$/, '')).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
 }
 
@@ -881,6 +894,7 @@ let user=JSON.parse(sessionStorage.getItem('cv_usr')||'null');
 let chatCount=0;
 let pdfCount=0;
 let activeDoc=null;
+let availableDocs=[];
 let premiumActive=false;
 let subscriptionExpiry=null;
 
@@ -938,6 +952,7 @@ function persistUserScopedState(){
 window.onload=async()=>{
   initTheme();
   initSpeechRecognition();
+  initDocListActions();
   restoreChatState();
   showSc('auth');
   if(token&&user){
@@ -1021,11 +1036,12 @@ async function checkAPI(){
       if(r.ok){
         setAPIBase(base);
         setAPI(true);
-        return;
+        return true;
       }
     }catch{}
   }
   setAPI(false);
+  return false;
 }
 function setAPI(ok){
   const d=document.getElementById('api-dot');
@@ -1070,6 +1086,11 @@ async function doLogin(){
   const btn=document.querySelector('#f-login .btn-auth');
   if(btn)btn.disabled=true;
   try{
+    const apiReady = await checkAPI();
+    if(!apiReady){
+      showErr(err, connectionHelp());
+      return;
+    }
     const r=await withAPIFallback('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,password:p})});
     const d=await parseJsonSafe(r);
     if(r.ok){saveUser(d);enterApp();}
@@ -1095,6 +1116,11 @@ async function doSignup(){
   const btn=document.querySelector('#f-signup .btn-auth');
   if(btn)btn.disabled=true;
   try{
+    const apiReady = await checkAPI();
+    if(!apiReady){
+      showErr(err, connectionHelp());
+      return;
+    }
     const r=await withAPIFallback('/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,email:e,phone_number:ph,password:p})});
     const d=await parseJsonSafe(r);
     if(r.ok){saveUser(d);enterApp();toast('? Account created! Welcome to Fuzragion','success');}
@@ -1381,6 +1407,7 @@ async function loadDocChips(){
     const r=await fetch(`${ACTIVE_API}/files`,{headers:ah()});
     const d=await r.json();
     const files=(d.files||[]).map(normalizeFileName).filter(Boolean);
+    availableDocs = files;
     const el=document.getElementById('doc-chips');
     el.innerHTML=`<div class="doc-chip ${activeDoc===null?'active':''}" onclick="setDoc(null,this)"><div class="dc-dot all"></div><span class="dc-name">All Documents</span></div>`
       +files.map(f=>`<div class="doc-chip ${activeDoc===f?'active':''}" onclick="setDoc(${jsArg(f)},this)"><div class="dc-dot"></div><span class="dc-name">${f}</span></div>`).join('');
@@ -1389,7 +1416,13 @@ async function loadDocChips(){
 }
 
 function setDoc(name,el){
-  activeDoc=name;
+  if(name===null){
+    activeDoc=null;
+  } else {
+    const wanted=String(name||'').trim().toLowerCase();
+    const canonical=availableDocs.find(f=>String(f).trim().toLowerCase()===wanted);
+    activeDoc=canonical || name;
+  }
   document.querySelectorAll('.doc-chip').forEach(c=>c.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('filter-lbl').textContent=name||'All Documents';
@@ -1500,7 +1533,20 @@ if(!premiumActive && chatCount>=MAX_FREE){showPaywall();return;}
   const typing=addTyping();
 
   try{
-    const r=await fetch(`${ACTIVE_API}/ask`,{method:'POST',headers:{'Content-Type':'application/json',...ah()},body:JSON.stringify({query:txt,file_name:activeDoc,mode:currentMode})});
+    let fileForQuery=activeDoc;
+    if(fileForQuery){
+      const wanted=String(fileForQuery).trim().toLowerCase();
+      const canonical=availableDocs.find(f=>String(f).trim().toLowerCase()===wanted);
+      if(!canonical){
+        fileForQuery=null;
+        activeDoc=null;
+        document.getElementById('filter-lbl').textContent='All Documents';
+      } else {
+        fileForQuery=canonical;
+        activeDoc=canonical;
+      }
+    }
+    const r=await fetch(`${ACTIVE_API}/ask`,{method:'POST',headers:{'Content-Type':'application/json',...ah()},body:JSON.stringify({query:txt,file_name:fileForQuery,mode:currentMode})});
     const d=await r.json();
     typing.remove();
     if(r.ok){
@@ -1580,7 +1626,7 @@ function addTyping(){
 async function loadDocs(){
   try{
     const r=await withAPIFallback('/documents',{headers:ah()});
-  if(r.status===401 || r.status===403){
+    if(r.status===401 || r.status===403){
       logout();
       return;
     }
@@ -1599,8 +1645,8 @@ async function loadDocs(){
         <div class="dr-info"><div class="dr-name">${name}</div><div class="dr-meta">${meta}</div></div>
         <div class="dr-badge">? Ready</div>
         <div class="dr-btns">
-          <button class="btn-cd" onclick="chatDoc(${jsArg(name)})">Chat</button>
-          <button class="btn-dd" onclick="delDoc(${jsArg(name)})">Delete</button>
+          <button type="button" class="btn-cd" data-doc-action="chat" data-doc-name="${name.replace(/"/g,'&quot;')}">Chat</button>
+          <button type="button" class="btn-dd" data-doc-action="delete" data-doc-name="${name.replace(/"/g,'&quot;')}">Delete</button>
         </div>
       </div>
       `;
@@ -1646,6 +1692,21 @@ async function uploadFiles(e){
   }
   setTimeout(()=>{prog.style.display='none';fill.style.width='0';},1500);
   loadDocs();e.target.value='';
+}
+
+function initDocListActions(){
+  const list=document.getElementById('doc-list');
+  if(!list || list.dataset.bound==='1') return;
+  list.dataset.bound='1';
+  list.addEventListener('click',(event)=>{
+    const btn=event.target.closest('button[data-doc-action]');
+    if(!btn) return;
+    const action=btn.getAttribute('data-doc-action');
+    const name=btn.getAttribute('data-doc-name');
+    if(!name) return;
+    if(action==='chat') chatDoc(name);
+    if(action==='delete') delDoc(name);
+  });
 }
 
 async function delDoc(name){
