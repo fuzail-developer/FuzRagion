@@ -340,8 +340,20 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_reindex_documents():
     try:
-        auto_reindex = os.getenv("AUTO_REINDEX_ON_STARTUP", "").strip().lower()
-        if auto_reindex in {"1", "true", "yes"}:
+        auto_reindex_raw = os.getenv("AUTO_REINDEX_ON_STARTUP", "").strip().lower()
+        auto_reindex_enabled = auto_reindex_raw in {"1", "true", "yes"}
+        auto_reindex_disabled = auto_reindex_raw in {"0", "false", "no"}
+
+        # On hosted platforms, default to reindex ON unless explicitly disabled.
+        if is_hosted and not auto_reindex_raw:
+            auto_reindex_enabled = True
+            print(
+                "AUTO_REINDEX_ON_STARTUP not set; defaulting to ON for hosted deployment."
+            )
+        elif auto_reindex_disabled:
+            auto_reindex_enabled = False
+
+        if auto_reindex_enabled:
             init_ai_components()
             sync_existing_documents_to_vectors()
             print("Startup document sync complete. PDFs are indexed and ready.")
