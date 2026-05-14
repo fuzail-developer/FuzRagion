@@ -19,6 +19,13 @@ from models import MagicLinkRequestLog, MagicLinkToken, User
 router = APIRouter(prefix="/auth", tags=["auth"])
 MONTHLY_SUBSCRIPTION_INR = 9999
 RAZORPAY_PAYMENT_LINK = "https://razorpay.me/@afreen9836"
+COMMON_EMAIL_DOMAIN_TYPO_MAP = {
+    "gamil.com": "gmail.com",
+    "gmial.com": "gmail.com",
+    "gmail.con": "gmail.com",
+    "hotmial.com": "hotmail.com",
+    "outlok.com": "outlook.com",
+}
 
 
 class RequestMagicLinkBody(BaseModel):
@@ -66,9 +73,19 @@ def normalize_phone_number(phone_number: str) -> str:
     return phone
 
 
+def normalize_email_address(email: str) -> str:
+    email = email.strip().lower()
+    if "@" not in email:
+        return email
+
+    local_part, domain = email.rsplit("@", 1)
+    corrected_domain = COMMON_EMAIL_DOMAIN_TYPO_MAP.get(domain, domain)
+    return f"{local_part}@{corrected_domain}"
+
+
 @router.post("/request-magic-link")
 def request_magic_link(payload: RequestMagicLinkBody, db: Session = Depends(get_db)):
-    email = payload.email.lower().strip()
+    email = normalize_email_address(payload.email)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     window_start = now - timedelta(hours=1)
 
@@ -229,7 +246,7 @@ def activate_subscription(
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
 def signup(payload: SignupBody, db: Session = Depends(get_db)):
     """Create a new user account with email and password"""
-    email = payload.email.lower().strip()
+    email = normalize_email_address(payload.email)
 
     existing_user = db.query(User).filter(User.email == email).first()
     if existing_user:
@@ -285,7 +302,7 @@ def signup(payload: SignupBody, db: Session = Depends(get_db)):
 @router.post("/login")
 def login(payload: LoginBody, db: Session = Depends(get_db)):
     """Login with email and password"""
-    email = payload.email.lower().strip()
+    email = normalize_email_address(payload.email)
 
     user = db.query(User).filter(User.email == email).first()
     if not user:

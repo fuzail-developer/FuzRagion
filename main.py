@@ -8,14 +8,16 @@ from itertools import chain
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from auth.utils import send_email
 from auth.dependencies import get_current_user
+from auth.utils import decode_access_token
 from auth.router import router as auth_router
 from dependencies.database import DATABASE_URL, SessionLocal, engine, get_db
 from models import Base, ChatHistory, Document, User
@@ -110,6 +112,35 @@ if is_hosted and STORAGE_BACKEND != "s3":
 
 def _storage_key(user_id: str, file_name: str) -> str:
     return f"pdfs/{user_id}/{file_name}"
+
+
+def _local_storage_path(user_id: str, file_name: str) -> Path | None:
+    user_file = PDFS_DIR / user_id / file_name
+    if user_file.exists():
+        return user_file
+    legacy_file = PDFS_DIR / file_name
+    if legacy_file.exists():
+        return legacy_file
+    try:
+        matches = [p for p in PDFS_DIR.rglob(file_name) if p.is_file()]
+        if matches:
+            return matches[0]
+    except Exception:
+        pass
+    return None
+
+
+def _file_exists_for_user(user_id: str, file_name: str) -> bool:
+    if STORAGE_BACKEND == "s3":
+        if not s3_bucket:
+            return False
+        try:
+            client = _build_s3_client()
+            client.head_object(Bucket=s3_bucket, Key=_storage_key(user_id, file_name))
+            return True
+        except Exception:
+            return False
+    return _local_storage_path(user_id, file_name) is not None
 
 
 def _build_s3_client():
@@ -316,15 +347,9 @@ def startup_reindex_documents():
             print("Startup document sync complete. PDFs are indexed and ready.")
             return
 
-        if is_hosted:
-            print(
-                "Startup fast mode enabled (hosted). AI components/indexing will initialize lazily on first request."
-            )
-            return
-
-        init_ai_components()
-        sync_existing_documents_to_vectors()
-        print("Startup document sync complete. PDFs are indexed and ready.")
+        print(
+            "Startup reindex skipped. Set AUTO_REINDEX_ON_STARTUP=1 to reindex existing PDFs on boot."
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"Startup document sync skipped: {exc}")
 
@@ -476,6 +501,7 @@ def list_documents(
                 "file_name": row.file_name,
                 "chunks_count": row.chunks_count,
                 "created_at": row.created_at,
+                "file_available": _file_exists_for_user(row.user_id, row.file_name),
             }
             for row in rows
         ]
@@ -511,17 +537,33 @@ async def upload(
 
     from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Invalid file name")
-    if not file.filename.lower().endswith(".pdf"):
+    incoming_name = (file.filename or "").strip()
+    safe_name = Path(incoming_name).name if incoming_name else "uploaded_document"
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    content_type = (file.content_type or "").lower().strip()
+    has_pdf_extension = safe_name.lower().endswith(".pdf")
+    has_pdf_signature = file_bytes.startswith(b"%PDF-")
+    is_pdf_content_type = "application/pdf" in content_type
+
+    # Mobile browsers may strip extensions or send generic mime types.
+    if not has_pdf_extension and has_pdf_signature:
+        safe_name = f"{safe_name}.pdf"
+        has_pdf_extension = True
+
+    if not (has_pdf_extension or has_pdf_signature or is_pdf_content_type):
         raise HTTPException(
-            status_code=400, detail="Only PDF upload is currently supported"
+            status_code=400,
+            detail="Only PDF files are supported. Please select a valid PDF document.",
         )
 
     existing_doc = (
         db.query(Document)
         .filter(
-            Document.user_id == current_user.id, Document.file_name == file.filename
+            Document.user_id == current_user.id, Document.file_name == safe_name
         )
         .first()
     )
@@ -534,22 +576,18 @@ async def upload(
             detail="Free plan includes 1 PDF upload. Delete your existing PDF or upgrade to Pro for unlimited uploads.",
         )
 
-    file_bytes = await file.read()
-    if not file_bytes:
-        raise HTTPException(status_code=400, detail="Uploaded file is empty")
-
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
         tmp_file.write(file_bytes)
         temp_path = Path(tmp_file.name)
 
     file_hash = get_hash(temp_path)
-    vector_file_id = _vector_file_id(current_user.id, file.filename)
+    vector_file_id = _vector_file_id(current_user.id, safe_name)
 
     try:
         chunks = prepare_document_chunks(
             str(temp_path),
             file_id=vector_file_id,
-            source=file.filename,
+            source=safe_name,
             user_id=current_user.id,
         )
         if existing_doc:
@@ -565,7 +603,7 @@ async def upload(
                 ),
             )
         vector_store.add_documents(chunks)
-        _upload_to_storage(current_user.id, file.filename, file_bytes)
+        _upload_to_storage(current_user.id, safe_name, file_bytes)
     finally:
         if temp_path.exists():
             temp_path.unlink()
@@ -573,7 +611,7 @@ async def upload(
     if not existing_doc:
         existing_doc = Document(
             user_id=current_user.id,
-            file_name=file.filename,
+            file_name=safe_name,
             file_hash=file_hash,
             vector_file_id=vector_file_id,
             chunks_count=len(chunks),
@@ -629,6 +667,110 @@ def delete_document_alias(
     db: Session = Depends(get_db),
 ):
     return delete_document(file_name=file_name, current_user=current_user, db=db)
+
+
+def _resolve_user_from_token(
+    request: Request,
+    access_token: str | None,
+    db: Session,
+) -> User:
+    token = None
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token and access_token:
+        token = access_token.strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing token")
+
+    try:
+        payload = decode_access_token(token)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=401, detail="Invalid token") from exc
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    current_user = (
+        db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
+    )
+    if not current_user:
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+    return current_user
+
+
+def _build_document_response(current_user: User, file_name: str, db: Session):
+    wanted_name = str(file_name or "").strip()
+    row = (
+        db.query(Document)
+        .filter(Document.user_id == current_user.id, Document.file_name == wanted_name)
+        .first()
+    )
+    if not row and wanted_name:
+        # Fallback for case/whitespace differences from UI/client.
+        row = (
+            db.query(Document)
+            .filter(
+                Document.user_id == current_user.id,
+                func.lower(func.trim(Document.file_name))
+                == wanted_name.strip().lower(),
+            )
+            .first()
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if STORAGE_BACKEND == "s3":
+        if not s3_bucket:
+            raise HTTPException(status_code=500, detail="S3 bucket is not configured")
+        try:
+            client = _build_s3_client()
+            obj = client.get_object(
+                Bucket=s3_bucket, Key=_storage_key(current_user.id, row.file_name)
+            )
+            data = obj["Body"].read()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=404, detail="File not found in storage") from exc
+
+        headers = {"Content-Disposition": f'inline; filename="{row.file_name}"'}
+        return Response(content=data, media_type="application/pdf", headers=headers)
+
+    user_file = _local_storage_path(current_user.id, row.file_name)
+    if user_file is None or not user_file.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="File not found in storage. Please re-upload this PDF.",
+        )
+
+    return FileResponse(
+        path=user_file,
+        media_type="application/pdf",
+        filename=row.file_name,
+        headers={"Content-Disposition": f'inline; filename="{row.file_name}"'},
+    )
+
+
+@app.get("/document/{file_name}")
+def view_document(
+    file_name: str,
+    request: Request,
+    access_token: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    current_user = _resolve_user_from_token(request, access_token, db)
+    return _build_document_response(current_user, file_name, db)
+
+
+@app.get("/document")
+def view_document_query(
+    request: Request,
+    file_name: str = Query(...),
+    access_token: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    current_user = _resolve_user_from_token(request, access_token, db)
+    return _build_document_response(current_user, file_name, db)
 
 
 def _run_answer(req: AskRequest, current_user: User, db: Session):

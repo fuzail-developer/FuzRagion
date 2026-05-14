@@ -518,7 +518,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:0 32px
       <p>📤 Upload PDFs, TXT, or MD • indexed automatically and ready to chat</p>
     </div>
     <div class="upload-zone">
-      <input type="file" accept=".pdf" onchange="uploadFiles(event)" multiple>
+      <input type="file" accept=".pdf,application/pdf" onchange="uploadFiles(event)" multiple>
       <div class="uz-icon">📤</div>
       <div class="uz-title">Drop files here or click to upload</div>
       <div class="uz-sub">PDF, TXT, MD • any size supported</div>
@@ -1655,14 +1655,16 @@ async function loadDocs(){
     el.innerHTML=docs.map(doc=>{
       const name=normalizeFileName(doc.file_name);
       const chunks=Number(doc.chunks_count||0);
+      const fileAvailable=doc.file_available!==false;
       const created=doc.created_at ? new Date(doc.created_at).toLocaleDateString() : '';
       const meta=`${chunks} chunk${chunks===1?'':'s'}${created ? ` • ${created}` : ''}`;
       return `
       <div class="doc-row">
         <div class="dr-icon">📄</div>
         <div class="dr-info"><div class="dr-name">${name}</div><div class="dr-meta">${meta}</div></div>
-        <div class="dr-badge">? Ready</div>
+        <div class="dr-badge">${fileAvailable ? '? Ready' : '? Re-upload required'}</div>
         <div class="dr-btns">
+          <button type="button" class="btn-cd" data-doc-action="view" data-doc-name="${name.replace(/"/g,'&quot;')}" ${fileAvailable ? '' : 'disabled title="File missing on server. Please re-upload."'}>View</button>
           <button type="button" class="btn-cd" data-doc-action="chat" data-doc-name="${name.replace(/"/g,'&quot;')}">Chat</button>
           <button type="button" class="btn-dd" data-doc-action="delete" data-doc-name="${name.replace(/"/g,'&quot;')}">Delete</button>
         </div>
@@ -1692,10 +1694,16 @@ async function uploadFiles(e){
   prog.style.display='block';
   for(let i=0;i<files.length;i++){
     const f=files[i];st.textContent=`Uploading ${f.name}...`;fill.style.width='20%';
+    const nameLower=(f.name||'').toLowerCase();
+    const typeLower=(f.type||'').toLowerCase();
+    if(!nameLower.endsWith('.pdf') && typeLower && !typeLower.includes('pdf') && typeLower!=='application/octet-stream'){
+      toast(`${f.name || 'File'} is not a PDF file`,'warning');
+      continue;
+    }
     const fd=new FormData();fd.append('file',f);
     try{
       const r=await withAPIFallback('/upload',{method:'POST',headers:ah(),body:fd});
-      const d=await r.json();
+      const d=await parseJsonSafe(r);
       fill.style.width=`${((i+1)/files.length)*100}%`;
       if(r.ok){
         const chunkInfo = typeof d.chunks === 'number' ? ` • ${d.chunks} chunks` : '';
@@ -1706,8 +1714,10 @@ async function uploadFiles(e){
         }
       }
       else if(r.status===403){toast('PDF upload locked. Upgrade required.','warning');showPaywall();}
-      else toast(`? ${d.detail}`,'error');
-    }catch{toast('? Upload failed','error');}
+      else toast(d?.detail || `Upload failed (HTTP ${r.status})`,'error');
+    }catch{
+      toast('Upload failed. Mobile par same Wi-Fi and server URL use karein.','error');
+    }
   }
   setTimeout(()=>{prog.style.display='none';fill.style.width='0';},1500);
   loadDocs();e.target.value='';
@@ -1723,9 +1733,33 @@ function initDocListActions(){
     const action=btn.getAttribute('data-doc-action');
     const name=btn.getAttribute('data-doc-name');
     if(!name) return;
+    if(action==='view') viewDoc(name);
     if(action==='chat') chatDoc(name);
     if(action==='delete') delDoc(name);
   });
+}
+
+async function viewDoc(name){
+  const filePart=encodeURIComponent(name);
+  const tok=encodeURIComponent(token||'');
+  const bases=getApiCandidates();
+  const preferred=(ACTIVE_API||'').trim().replace(/\/+$/,'');
+  const ordered=[preferred,...bases].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
+  for(let i=0;i<ordered.length;i++){
+    const base=ordered[i];
+    try{
+      const health=await fetch(`${base}/health`);
+      if(!health.ok) continue;
+      setAPIBase(base);
+      const directUrl=`${base}/document?file_name=${filePart}&access_token=${tok}`;
+      const opened=window.open(directUrl,'_blank');
+      if(!opened){
+        toast('Popup blocked. Please allow popups for this site.','warning');
+      }
+      return;
+    }catch{}
+  }
+  toast('Cannot reach the backend service. Please start the server and try again.','error');
 }
 
 async function delDoc(name){
