@@ -722,9 +722,22 @@ const IS_LOOPBACK =
   HOSTNAME === "::1" ||
   IS_IPV4_LOOPBACK ||
   window.location.protocol === "file:";
-const SAME_ORIGIN_API = window.location.protocol === "file:"
-  ? "http://127.0.0.1:8001"
-  : `${window.location.protocol}//${window.location.host}`;
+const BACKEND_PORT = 8001;
+let API_BASE_URL;
+if (IS_LOOPBACK || window.location.protocol === "file:") {
+  API_BASE_URL = `http://127.0.0.1:${BACKEND_PORT}`;
+} else {
+  API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:${BACKEND_PORT}`;
+}
+const API_FALLBACKS = [
+  API_BASE_URL,
+  `http://127.0.0.1:${BACKEND_PORT}`,
+  `http://localhost:${BACKEND_PORT}`,
+  `${window.location.origin}`,
+  `${window.location.protocol}//${window.location.hostname}:8000`,
+];
+console.log("API_BASE_URL set to:", API_BASE_URL);
+const SAME_ORIGIN_API = API_BASE_URL;
 const LOCAL_API_8001 = "http://127.0.0.1:8001";
 const LOCAL_API_8002 = "http://127.0.0.1:8002";
 const SAME_HOST_8001 = `${window.location.protocol}//${window.location.hostname}:8001`;
@@ -758,6 +771,7 @@ function getApiCandidates(){
     SAME_ORIGIN_API,
     ACTIVE_API,
     ORIGIN_API,
+    ...API_FALLBACKS,
     ...LOCAL_API_FALLBACKS,
     "http://localhost:8001",
     "http://localhost:8002",
@@ -779,29 +793,26 @@ function connectionHelp(){
   return `Cannot connect to server. Make sure backend is running, then open the same base URL on laptop/mobile.\nWeb: ${web}\nAPI: ${api}`;
 }
 
-async function withAPIFallback(path, options){
-  const timeoutMs = 12000;
-  const baseOpts = {...(options||{})};
+async function withAPIFallback(path, options = {}){
+  const timeoutMs = 10000;
   let lastErr;
   for(const base of getApiCandidates()){
     const controller = new AbortController();
     const timer = setTimeout(()=>controller.abort(), timeoutMs);
     try{
-      const resp = await fetch(`${base}${path}`, {...baseOpts, signal: controller.signal});
-      const ct=(resp.headers.get('content-type')||'').toLowerCase();
-      const looksWrongHost = (!resp.ok && (resp.status===404 || ct.includes('text/html')));
-      if(looksWrongHost){
-        continue;
+      const resp = await fetch(`${base}${path}`, {...options, signal: controller.signal});
+      if(resp.ok || resp.status === 401 || resp.status === 403){
+        setAPIBase(base);
+        return resp;
       }
-      setAPIBase(base);
-      return resp;
     }catch(err){
       lastErr = err;
     } finally {
       clearTimeout(timer);
     }
   }
-  throw lastErr || new Error('API unreachable');
+  console.error("All API fallbacks failed");
+  throw lastErr || new Error('Cannot connect to API server');
 }
 
 async function parseJsonSafe(response){
@@ -1856,6 +1867,5 @@ function toast(msg,type=''){
 </script>
 </body>
 </html>
-
 
 
