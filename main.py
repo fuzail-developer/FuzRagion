@@ -308,9 +308,10 @@ def sync_existing_documents_to_vectors():
 
 def prepare_document_chunks(file_path: str, *, file_id: str, source: str, user_id: str):
     """Load a document, split it into chunks, and attach storage metadata."""
-    from pdf_loader import split_file_into_chunks
+    from langchain_community.document_loaders import PyPDFLoader
 
-    chunks = split_file_into_chunks(file_path)
+    docs = PyPDFLoader(file_path).load()
+    chunks = text_splitter.split_documents(docs)
     if not chunks:
         raise HTTPException(
             status_code=422,
