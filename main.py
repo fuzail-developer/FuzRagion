@@ -616,6 +616,14 @@ async def upload(
             )
         vector_store.add_documents(chunks)
         _upload_to_storage(current_user.id, safe_name, file_bytes)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # Prevent generic 500 and show actionable message for PDF parsing/chunking failures.
+        raise HTTPException(
+            status_code=422,
+            detail=f"PDF process nahi ho paya: {safe_name}. File password-protected, scanned image-only, ya corrupt ho sakti hai. Error: {exc}",
+        ) from exc
     finally:
         if temp_path.exists():
             temp_path.unlink()
