@@ -249,12 +249,18 @@ def init_ai_components():
     print("✓ AI components initialized")
 
 
+def _split_pdf_into_chunks(file_path: str):
+    from langchain_community.document_loaders import PyPDFLoader
+
+    docs = PyPDFLoader(file_path).load()
+    return text_splitter.split_documents(docs)
+
+
 def sync_existing_documents_to_vectors():
     """Rebuild vectors for PDFs already stored on disk."""
     if vector_store is None or qdrant_client is None:
         return
 
-    from pdf_loader import split_file_into_chunks
     from qdrant_client.models import Filter, FieldCondition, MatchValue
 
     db = SessionLocal()
@@ -285,7 +291,7 @@ def sync_existing_documents_to_vectors():
             except Exception as exc:  # noqa: BLE001
                 print(f"Skipping old vector cleanup for {row.file_name}: {exc}")
 
-            chunks = split_file_into_chunks(str(file_path))
+            chunks = _split_pdf_into_chunks(str(file_path))
             if not chunks:
                 print(f"Skipping reindex for {row.file_name}: no extractable text found")
                 continue
@@ -308,10 +314,7 @@ def sync_existing_documents_to_vectors():
 
 def prepare_document_chunks(file_path: str, *, file_id: str, source: str, user_id: str):
     """Load a document, split it into chunks, and attach storage metadata."""
-    from langchain_community.document_loaders import PyPDFLoader
-
-    docs = PyPDFLoader(file_path).load()
-    chunks = text_splitter.split_documents(docs)
+    chunks = _split_pdf_into_chunks(file_path)
     if not chunks:
         raise HTTPException(
             status_code=422,
