@@ -1,4 +1,4 @@
-# 🚀 CogniVault - AI Document Intelligence RAG System
+# 🚀 FuzRagion - AI Document Intelligence RAG System
 
 A production-ready **Retrieval-Augmented Generation (RAG)** system that lets you upload documents (PDFs, TXT, Markdown) and ask questions using natural language to get instant, cited answers.
 
